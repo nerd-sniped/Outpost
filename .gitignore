@@ -1,0 +1,4 @@
+.env
+scripts/benchmark/models/
+scripts/benchmark/RESULTS.md
+*.log

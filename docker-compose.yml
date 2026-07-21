@@ -1,0 +1,34 @@
+# Outpost — rung 1 (self-host), Phase 1 baseline: localhost only.
+#
+#   docker compose up -d --build
+#   open http://localhost:3000
+#
+# Phase 2 adds a Tailscale sidecar (see compose.tailscale.yml, forthcoming) so this
+# is reachable as https://freecad.<tailnet>.ts.net with zero open ports and no
+# gatekeeper. Until then this exposes port 3000 on localhost only.
+
+services:
+  outpost:
+    build:
+      context: .
+      # Bump these to change pins without editing the Dockerfile.
+      args:
+        FREECAD_VERSION: "1.0.1"
+        GITPDM_VERSION: "v0.6.3"
+        HISTORY_WB_VERSION: "v0.1.0"
+    image: outpost:dev
+    container_name: outpost
+    # Selkies needs real shared memory for the browser/GL pipeline.
+    shm_size: "1gb"
+    env_file:
+      - .env
+    ports:
+      - "127.0.0.1:3000:3000"   # Selkies HTTP (browser)
+      - "127.0.0.1:8080:8080"   # Outpost /healthz
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+    restart: unless-stopped

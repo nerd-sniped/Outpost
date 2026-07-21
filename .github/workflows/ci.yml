@@ -1,0 +1,56 @@
+name: CI
+
+# Cheapest canaries per the plan's "Test infrastructure" section: the image builds,
+# a container boots and stays up, and the headless auth probe is wired correctly.
+# Full browser round-trips stay manual (Selkies E2E isn't worth its upkeep at this
+# scale). The GitPDM<->HistoryWorkbench pair test activates when the HW adapter lands.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-and-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build -t outpost:ci .
+
+      - name: Boot smoke test (container stays up 60s, /healthz answers)
+        run: |
+          docker run -d --name outpost --shm-size=1gb -p 8080:8080 outpost:ci
+          # /healthz should come up; auth is legitimately "absent" with no token.
+          for i in $(seq 1 24); do
+            if curl -fsS http://localhost:8080/healthz; then ok=1; break; fi
+            sleep 5
+          done
+          echo
+          [ "${ok:-0}" = 1 ] || { echo "healthz never came up"; docker logs outpost; exit 1; }
+          sleep 60
+          docker ps --filter name=outpost --filter status=running --format '{{.Names}}' \
+            | grep -q outpost || { echo "container did not stay up"; docker logs outpost; exit 1; }
+
+      - name: Auth probe wired (headless, no token -> clean FAILED exit 1, never hangs)
+        run: |
+          out=$(docker exec outpost outpost-authcheck || true)
+          echo "$out"
+          echo "$out" | grep -q "FAILED" || { echo "probe did not report FAILED cleanly"; exit 1; }
+
+      # Optional: closes Phase 0.2 when a scoped throwaway PAT secret is configured.
+      - name: Live auth smoke (0.2) — only if a PAT secret is present
+        if: ${{ secrets.GITPDM_TEST_PAT != '' }}
+        env:
+          PAT: ${{ secrets.GITPDM_TEST_PAT }}
+        run: |
+          out=$(docker exec -e GITPDM_TOKEN="$PAT" -e GITPDM_PROVIDER=github \
+                  outpost outpost-authcheck)
+          echo "$out"
+          echo "$out" | grep -q "OK — source=env" || { echo "0.2 live smoke failed"; exit 1; }
+
+      - name: Teardown
+        if: always()
+        run: docker rm -f outpost || true

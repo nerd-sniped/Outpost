@@ -1,0 +1,76 @@
+# syntax=docker/dockerfile:1
+#
+# Outpost — a browser-based workstation for FreeCAD, git-native via GitPDM.
+# One image, two deployment targets (rung 1 self-host, rung 2 Railway).
+#
+# We build on linuxserver's Selkies baseimage (display stack + single-app launch +
+# RESTART_APP crash-relaunch) and layer in a *pinned* FreeCAD AppImage so the image
+# only ever ships a FreeCAD we control. See docs/DECISIONS.md (D1–D3).
+
+ARG SELKIES_BASE=lscr.io/linuxserver/baseimage-selkies:ubuntunoble
+FROM ${SELKIES_BASE}
+
+# --- Pins (all four are the knobs you bump; keep them in sync with docs/) ---
+ARG FREECAD_VERSION=1.0.1
+ARG FREECAD_SHA256=5a3fc405771b4fbb5f270110d055bc135123c9fc91bb7dbb5d068ac7fbe50f6e
+ARG FREECAD_ARCH=x86_64
+ARG GITPDM_VERSION=v0.6.3
+ARG HISTORY_WB_VERSION=v0.1.0
+
+LABEL org.opencontainers.image.title="Outpost" \
+      org.opencontainers.image.description="Browser-based FreeCAD workstation, git-native via GitPDM" \
+      org.opencontainers.image.source="https://github.com/nerd-sniped/Outpost"
+
+# Build/runtime deps beyond the base: git+ca-certs for clone-on-boot, python3 for the
+# headless auth.check probe and /healthz, mesa dri for llvmpipe software GL, curl to
+# fetch the AppImage. FreeCAD's conda AppImage bundles its own Qt/Python — we don't
+# apt-install those.
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      git ca-certificates curl python3 \
+      libgl1-mesa-dri libglu1-mesa && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# --- FreeCAD AppImage: verify, extract (no FUSE), place at /opt/freecad ---
+RUN cd /tmp && \
+    AI="FreeCAD_${FREECAD_VERSION}-conda-Linux-${FREECAD_ARCH}-py311.AppImage" && \
+    curl -fsSL -o "$AI" \
+      "https://github.com/FreeCAD/FreeCAD/releases/download/${FREECAD_VERSION}/${AI}" && \
+    echo "${FREECAD_SHA256}  ${AI}" | sha256sum -c - && \
+    chmod +x "$AI" && \
+    ./"$AI" --appimage-extract && \
+    mv squashfs-root /opt/freecad && \
+    rm -f "$AI" && \
+    /opt/freecad/AppRun --version || true
+
+# --- Addons baked image-internal (survives a /config volume mount); seeded into
+#     FreeCAD's Mod/ at boot by custom-cont-init. HistoryWorkbench is LGPL-2.1:
+#     runtime interop only, never vendored — pinned-tag clone at build satisfies that. ---
+RUN mkdir -p /opt/outpost/addons && \
+    git clone --depth 1 --branch "${GITPDM_VERSION}" \
+      https://github.com/nerd-sniped/GitPDM.git /opt/outpost/addons/GitPDM && \
+    git clone --depth 1 --branch "${HISTORY_WB_VERSION}" \
+      https://github.com/eblanshey/HistoryWorkbench.git /opt/outpost/addons/HistoryWorkbench && \
+    rm -rf /opt/outpost/addons/GitPDM/.git /opt/outpost/addons/HistoryWorkbench/.git
+
+# Overlay: /defaults/autostart, /custom-cont-init.d/*, /custom-services.d/*, /opt/outpost/*
+COPY root/ /
+
+# Restore exec bits (lost when authored on Windows) and put the auth probe on PATH.
+RUN chmod +x /defaults/autostart \
+             /custom-cont-init.d/10-outpost-init.sh \
+             /custom-services.d/healthz \
+             /opt/outpost/authcheck.sh \
+             /opt/outpost/healthz.py && \
+    ln -sf /opt/outpost/authcheck.sh /usr/local/bin/outpost-authcheck
+
+# Outpost defaults. Overridable per-deployment (.env / Railway template vars).
+ENV TITLE="Outpost" \
+    GITPDM_PROVIDER="github" \
+    GITPDM_HOST="github.com" \
+    OUTPOST_REPO_ROOT="/config/repo" \
+    OUTPOST_ADDONS_DIR="/opt/outpost/addons" \
+    RESTART_APP="true"
+
+# 3000 HTTP / 3001 HTTPS (Selkies, from base) · 8080 Outpost /healthz
+EXPOSE 3000 3001 8080
