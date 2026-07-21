@@ -3,9 +3,10 @@
 #   docker compose up -d --build
 #   open http://localhost:3000
 #
-# Phase 2 adds a Tailscale sidecar (see compose.tailscale.yml, forthcoming) so this
-# is reachable as https://freecad.<tailnet>.ts.net with zero open ports and no
-# gatekeeper. Until then this exposes port 3000 on localhost only.
+# For phone/remote access, add the Phase 2 Tailscale overlay — reachable as
+# https://freecad.<tailnet>.ts.net with zero open ports and no gatekeeper:
+#   docker compose -f docker-compose.yml -f compose.tailscale.yml up -d --build
+# On its own, this file exposes port 3000 on localhost only.
 
 services:
   outpost:
