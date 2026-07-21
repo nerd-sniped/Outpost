@@ -1,0 +1,9 @@
+# The image overlay ships shell scripts with #!/usr/bin/with-contenv bash shebangs
+# and Python that runs in Linux containers. CRLF would break the shebangs and s6
+# services on a Windows checkout, so force LF for everything that lands in the image.
+* text=auto eol=lf
+
+*.sh    text eol=lf
+*.py    text eol=lf
+Dockerfile text eol=lf
+root/**  text eol=lf
