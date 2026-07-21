@@ -7,15 +7,19 @@ set -uo pipefail
 log() { echo "[outpost-init] $*"; }
 log "starting"
 
-PUID="${PUID:-1000}"
-PGID="${PGID:-1000}"
+# Chown by NAME (abc), never a hardcoded uid: this base ships abc as uid 911, and
+# PUID only remaps it when explicitly set. An earlier version chowned to ${PUID:-1000}
+# and handed FreeCAD's cache to uid 1000 — abc (911) then couldn't create its IPC lock
+# and the GUI exited after the splash (blank stream). "abc" always resolves correctly.
+OWNER="abc:abc"
 FC_MOD="/config/.local/share/FreeCAD/Mod"
 ADDONS_DIR="${OUTPOST_ADDONS_DIR:-/opt/outpost/addons}"
 REPO_ROOT="${OUTPOST_REPO_ROOT:-/config/repo}"
 
 # 1. Seed FreeCAD's Mod dir with the baked addons (symlink; survives a /config volume).
+#    OutpostBoot is our own startup addon (wires the SIGTERM checkpoint hook).
 mkdir -p "$FC_MOD"
-for addon in GitPDM HistoryWorkbench; do
+for addon in GitPDM HistoryWorkbench OutpostBoot; do
   if [ -d "$ADDONS_DIR/$addon" ] && [ ! -e "$FC_MOD/$addon" ]; then
     ln -s "$ADDONS_DIR/$addon" "$FC_MOD/$addon" && log "linked addon $addon"
   fi
@@ -32,9 +36,17 @@ if [ -n "${GIT_REMOTE_URL:-}" ] && [ ! -d "$REPO_ROOT/.git" ]; then
   fi
 fi
 
-# 3. Ownership: git/init run as root; FreeCAD runs as the abc user (PUID:PGID).
-chown -R "$PUID:$PGID" /config/.local 2>/dev/null || true
-[ -d "$REPO_ROOT" ] && chown -R "$PUID:$PGID" "$REPO_ROOT" 2>/dev/null || true
+# 3. Ownership: git/init run as root; FreeCAD runs as abc. FreeCAD writes config to
+#    ~/.config/FreeCAD and its single-instance IPC lock to ~/.cache/FreeCAD/Cache/ —
+#    both MUST be abc-writable or the GUI exits right after the splash (blank stream).
+#    The FreeCAD AppImage's build-time --version probe can bake these dirs as root
+#    (the base sets HOME=/config even at build), so chown RECURSIVELY, by name. This is
+#    also volume-safe.
+for d in /config/.config /config/.cache /config/.local; do
+  mkdir -p "$d"
+  chown -R "$OWNER" "$d" 2>/dev/null || true
+done
+[ -d "$REPO_ROOT" ] && chown -R "$OWNER" "$REPO_ROOT" 2>/dev/null || true
 
 # Credential note: rung 1 passes GITPDM_TOKEN via env (documented .env contract);
 # GitPDM reads it directly. The tmpfs token-file handoff (GITPDM_TOKEN_FILE) is the

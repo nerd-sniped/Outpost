@@ -1,8 +1,10 @@
 #!/usr/bin/with-contenv bash
-# Selkies base launches this as the single foreground app. With RESTART_APP=true the
-# base watchdog relaunches it if FreeCAD exits (the crash-resilience path, Phase 1.1).
+# Copied to $HOME/.config/openbox/autostart by the base's init-selkies-config, then
+# run (via `sh`) as the single foreground app. With RESTART_APP=true the base watchdog
+# relaunches it if FreeCAD exits (crash-resilience, Phase 1.1).
 #
-# freecad_boot.py runs inside FreeCAD's GUI process (main thread) at startup and wires
-# GitPDM's SIGTERM checkpoint hook. FreeCAD executes a .py passed on its command line
-# after GUI init.
-exec /opt/freecad/AppRun /opt/outpost/freecad_boot.py
+# Launch the FreeCAD GUI bare — do NOT pass a .py argument: FreeCAD runs a script
+# argument in console mode and then EXITS, which the watchdog would just relaunch into
+# the same immediate exit (blank stream). Startup wiring lives in the OutpostBoot addon
+# (Mod/OutpostBoot/InitGui.py), which FreeCAD loads at GUI init without exiting.
+exec /opt/freecad/AppRun

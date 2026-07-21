@@ -11,8 +11,8 @@ ARG SELKIES_BASE=lscr.io/linuxserver/baseimage-selkies:ubuntunoble
 FROM ${SELKIES_BASE}
 
 # --- Pins (all four are the knobs you bump; keep them in sync with docs/) ---
-ARG FREECAD_VERSION=1.0.1
-ARG FREECAD_SHA256=5a3fc405771b4fbb5f270110d055bc135123c9fc91bb7dbb5d068ac7fbe50f6e
+ARG FREECAD_VERSION=1.0.2
+ARG FREECAD_SHA256=e00be00ad9fdb12b05c5002bfd1aa2ea8126f2c1d4e2fb603eb7423b72904f61
 ARG FREECAD_ARCH=x86_64
 ARG GITPDM_VERSION=v0.6.3
 ARG HISTORY_WB_VERSION=v0.1.0
@@ -41,7 +41,11 @@ RUN cd /tmp && \
     ./"$AI" --appimage-extract && \
     mv squashfs-root /opt/freecad && \
     rm -f "$AI" && \
-    /opt/freecad/AppRun --version || true
+    # Sanity-check the extraction, but with HOME off /config: the base sets HOME=/config
+    # even at build, and a bare `AppRun --version` would bake root-owned FreeCAD config/
+    # cache dirs into /config that abc then can't write (GUI exits after splash).
+    env HOME=/tmp/fcprobe /opt/freecad/AppRun --version || true; \
+    rm -rf /tmp/fcprobe
 
 # --- Addons baked image-internal (survives a /config volume mount); seeded into
 #     FreeCAD's Mod/ at boot by custom-cont-init. HistoryWorkbench is LGPL-2.1:
