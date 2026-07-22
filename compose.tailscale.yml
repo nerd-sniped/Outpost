@@ -1,0 +1,57 @@
+# Outpost — rung 1, Phase 2: reach FreeCAD over Tailscale (no open ports, no gatekeeper).
+#
+#   cp .env.example .env          # set GITPDM_TOKEN + TS_AUTHKEY (or leave TS_AUTHKEY
+#                                 # blank and grab the login URL from the logs)
+#   docker compose -f docker-compose.yml -f compose.tailscale.yml up -d --build
+#   docker compose logs -f tailscale   # first run: follow the login URL if no authkey
+#
+# Then, from any machine on the tailnet: https://freecad.<your-tailnet>.ts.net
+#
+# Design (see docs/DECISIONS.md D5): the tailscale sidecar owns the network namespace;
+# `outpost` joins it (network_mode: service:tailscale) so Selkies listens on 127.0.0.1
+# *inside that netns* and is never published to the host. `tailscale serve` terminates
+# a real Let's Encrypt cert on :443 and reverse-proxies to Selkies on :3000 (WebSocket
+# upgrade included). Tailnet-only — no Funnel, so nothing is exposed to the internet.
+# On rung 1 the tailnet IS the auth boundary; the gatekeeper (Phase 3) is deliberately
+# absent here (AUTH_MODE=tailscale).
+
+services:
+  tailscale:
+    image: tailscale/tailscale:stable
+    container_name: outpost-tailscale
+    hostname: freecad                     # → MagicDNS name freecad.<tailnet>.ts.net
+    environment:
+      # Blank = the container prints a one-time login URL to its logs (interactive
+      # bring-up). Prefer an ephemeral, tagged, pre-approved auth key for headless runs.
+      TS_AUTHKEY: "${TS_AUTHKEY:-}"
+      TS_HOSTNAME: "freecad"
+      TS_STATE_DIR: "/var/lib/tailscale"  # persisted below → no re-auth on restart
+      TS_SERVE_CONFIG: "/config/serve.json"
+      # Userspace networking: portable (Docker Desktop / hosts without /dev/net/tun)
+      # and needs no NET_ADMIN. `tailscale serve` works fine in this mode. For a Linux
+      # host wanting kernel-mode perf, set TS_USERSPACE=false and add the cap_add +
+      # devices block noted in DECISIONS.md D5.
+      TS_USERSPACE: "true"
+      TS_EXTRA_ARGS: "${TS_EXTRA_ARGS:-}"
+    volumes:
+      - tailscale-state:/var/lib/tailscale
+      - ./tailscale/serve.json:/config/serve.json:ro
+    restart: unless-stopped
+
+  outpost:
+    # Share the tailscale sidecar's network stack. Selkies (:3000) and /healthz (:8080)
+    # now live inside that netns, reachable only via `tailscale serve` — not the host.
+    network_mode: "service:tailscale"
+    # Drop the base file's 127.0.0.1 port publishing: publishing is incompatible with
+    # network_mode: service, and the whole point here is zero host ports. `!reset`
+    # replaces the base list instead of the default merge-append (Compose >= 2.24).
+    ports: !reset []
+    environment:
+      # Forward-declared marker consumed by the Phase 3 gatekeeper; on rung 1 it just
+      # records that the network (tailnet) is the auth boundary and no shim is present.
+      AUTH_MODE: "tailscale"
+    depends_on:
+      - tailscale
+
+volumes:
+  tailscale-state:
