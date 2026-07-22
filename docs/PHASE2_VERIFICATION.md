@@ -69,6 +69,16 @@ Reading:
   software-GL (llvmpipe) crash would originate. Logged as a **Phase 1.5 data point**,
   not a bug to chase: one-off, recovered cleanly, did not reproduce.
 
+## Observation — UI scale is device-dependent
+
+On FreeCAD 1.1.1 the streamed UI reads well on a phone but looks oversized on a desktop
+(and the reverse can happen depending on which device sizes the display first). Cause:
+one server-side UI renders at a fixed `QT_SCALE_FACTOR`, and FreeCAD fixes its DPI at
+launch — it doesn't re-evaluate when Selkies resizes the display for a different client.
+The baked `QT_SCALE_FACTOR=0.9` (D6) is a legibility stopgap, tunable via `.env`. The
+real fix — per-device / adaptive scaling — is logged as a **Phase 5 backlog item**, with
+per-device legibility folded into the **4.4 touch pass**. Non-blocking for rung 1.
+
 ## 2.3 — Docs + fresh-machine test ✅
 
 Brought up on a **second machine** following the documented setup and reached working

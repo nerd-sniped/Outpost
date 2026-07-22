@@ -48,8 +48,12 @@ Snapshot for whoever takes the next phase. Per-phase status is also tagged inlin
   cookie life is capped and why the gatekeeper exists at all.
 
 **Open, non-blocking items carried forward** (log, don't gate on):
-- FreeCAD bumped **1.0.2 → 1.1.1** (D6 — GitPDM↔HW pair verified on 1.1.1 by the GitPDM
-  owner). Benchmark 1.5 re-run on 1.1.1 to refresh `RESULTS.md` is pending.
+- FreeCAD bumped **1.0.2 → 1.1.1** (D6); GitPDM bumped **v0.6.3 → v0.6.4** (D7,
+  Open/Clone flow fix). Tested pair: FreeCAD 1.1.1 + GitPDM v0.6.4 + HW v0.1.0.
+  Benchmark 1.5 re-run on 1.1.1 to refresh `RESULTS.md` is pending.
+- **UI scale is device-dependent** — `QT_SCALE_FACTOR=0.9` is a static stopgap that
+  reads well on a phone but can look oversized on a desktop. Real fix (per-device /
+  adaptive scaling) is tracked as a Phase 5 backlog item; verification folded into 4.4.
 - 0.2 live `auth.check` against a real throwaway PAT in the built image (structural —
   needs a token + the image; wired as a CI/manual step).
 - A clean ~10-min upload-bandwidth number from a rung-1 session (feeds Phase 4.3 cost
@@ -176,7 +180,7 @@ One week of realistic personal use on Railway (~5–10 hrs).
 
 ### 4.4 Touch pass (M)
 iPad Safari + Android Chrome, finger and stylus/mouse where available.
-**Test:** the four CAD-critical gestures — orbit, pan, zoom, right-click emulation — verified per platform; GitPDM commit flow completable by finger (R2.6); findings written into an honest "input devices" doc section (expected outcome: *iPad + mouse = good; bare finger = field access, not authoring*).
+**Test:** the four CAD-critical gestures — orbit, pan, zoom, right-click emulation — verified per platform; GitPDM commit flow completable by finger (R2.6); findings written into an honest "input devices" doc section (expected outcome: *iPad + mouse = good; bare finger = field access, not authoring*). **Also record UI-scale legibility per device** — the same session's toolbars/fonts that read well on a phone can look oversized on a desktop and vice-versa (see the Phase 5 adaptive-scaling item); note the acceptable range and whether a static `QT_SCALE_FACTOR` is good enough or the adaptive work is warranted.
 
 ### 4.5 Template publish + stranger test (S)
 `railway.json`, template listing with the *validated* cost estimate and benchmark-informed assembly-size guidance.
@@ -189,7 +193,7 @@ iPad Safari + Android Chrome, finger and stylus/mouse where available.
 
 ## Phase 5 — Demand-driven polish (no exit gate; backlog, not commitment)
 
-GPU compose overlay (NVENC) + docs · Wake-on-LAN guide · FreeCAD touch-profile preset (large toolbars) · recovery-restore integration test (kill container mid-session → GitPDM offers restore from `gitpdm/recovery` on next boot — exercises GitPDM's already-shipped checkpoint restore, not new code) · Fly.io port of the gatekeeper flow (same image, proves portability claim) · GitLab.com device-flow provider (exercises token refresh in production; note GitLab is PAT-only in GitPDM today per the capability matrix).
+GPU compose overlay (NVENC) + docs · Wake-on-LAN guide · FreeCAD touch-profile preset (large toolbars) · **Adaptive / per-device UI scaling** — the streamed session renders one server-side UI at a fixed `QT_SCALE_FACTOR`, so it can read well on a phone yet look oversized on a desktop (observed in Phase 2 testing; it depends on which device sizes the display first, because FreeCAD fixes its DPI at launch and doesn't re-evaluate on a live Selkies resolution change). Investigate: detect the connecting client's resolution/aspect at session start and set scale accordingly, and/or drive FreeCAD's DPI live when Selkies resizes the display. The baked `QT_SCALE_FACTOR=0.9` ([[D6]]-era) is a static stopgap; per-client scaling is the real fix and may be bounded by what a single shared X session can do · recovery-restore integration test (kill container mid-session → GitPDM offers restore from `gitpdm/recovery` on next boot — exercises GitPDM's already-shipped checkpoint restore, not new code) · recovery-restore integration test (kill container mid-session → GitPDM offers restore from `gitpdm/recovery` on next boot — exercises GitPDM's already-shipped checkpoint restore, not new code) · Fly.io port of the gatekeeper flow (same image, proves portability claim) · GitLab.com device-flow provider (exercises token refresh in production; note GitLab is PAT-only in GitPDM today per the capability matrix).
 
 ---
 
