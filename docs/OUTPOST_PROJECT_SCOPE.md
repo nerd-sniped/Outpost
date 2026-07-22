@@ -80,7 +80,7 @@ One image, two deployment targets. Every component below is pinned by version in
 |---|---|---|
 | Base | **`lscr.io/linuxserver/baseimage-selkies`** (or extend `linuxserver/freecad` with a pinned FreeCAD) | Maintained upstream base that already provides the virtual display, a bare WM, Selkies, single-app launch logic, and `RESTART_APP` crash-relaunch. Do **not** hand-build the Xvfb/Openbox/Selkies stack — that maintenance burden belongs upstream. LinuxServer rebased their whole catalog onto Selkies; this is their mainline |
 | CAD | **FreeCAD AppImage**, `--appimage-extract` at build | Pinned via `ARG FREECAD_VERSION`. Extract, don't FUSE-mount — FUSE in containers is privilege pain |
-| PDM | **GitPDM `v0.6.3`**, pinned release tag | Installed into `Mod/`; requires GitPDM R3.1 (tagged releases). Re-verify `gh run list --branch v0.6.3` is green before build; if a later tag ships, re-verify and bump the pin the same way — don't pin on tag existence alone (confirmed failure mode: v0.4.0 was tagged before its own CI workflow existed) |
+| PDM | **GitPDM `v0.6.4`**, pinned release tag | Installed into `Mod/`; requires GitPDM R3.1 (tagged releases). Re-verify `gh run list --branch v0.6.4` is green before build; if a later tag ships, re-verify and bump the pin the same way — don't pin on tag existence alone (confirmed failure mode: v0.4.0 was tagged before its own CI workflow existed) |
 | Visual diff | **HistoryWorkbench**, pinned (`ARG HISTORY_WB_VERSION`) | Installed alongside GitPDM as a separate addon (LGPL-2.1 — runtime interop only, never vendored). The image ships only version pairs that passed the GitPDM↔HW CI pair test (GitPDM R5.5c). Makes visual 3D diff a launch feature of the deployment at near-zero cost |
 | Streaming | **Selkies** (provided by the base image; WebSocket transport default) | Browser-native, touch input support, H.264/VP8 software encode ~150% CPU at 1080p, no TURN server needed on WebSocket mode |
 | Door key | **`gatekeeper`** — a small (~200-line) auth shim, Python/FastAPI or Go | Sits in front of Selkies. Runs GitHub device flow, compares the authenticated login to `ALLOWED_GITHUB_USER`, sets a signed session cookie (**default 24–48 h**, not longer — see security note below), proxies to Selkies. The same token is written to `GITPDM_TOKEN_FILE` on tmpfs — **one auth = door key + git credential**. Must also set `GITPDM_PROVIDER` to match (the token is used for both host-API calls *and* git-over-HTTPS auth; they must agree). Stays streaming-agnostic: generic HTTP/WebSocket proxy only |
@@ -117,7 +117,7 @@ railway template
 
 No Kubernetes, no TURN server, no reverse-proxy config for users to write, no database, no volume by default, no auth broker hosted by the project, no Railway-specific code outside `railway.json`.
 
-### GitPDM integration contract (pinned to v0.6.3)
+### GitPDM integration contract (pinned to v0.6.4)
 
 Outpost depends on GitPDM's **headless surface**, which is FreeCAD-agnostic by construction and unit-tested with FreeCAD absent. The reference is GitPDM's own `GITPDM_ARCHITECTURE_AND_DEVIATIONS.md`; the load-bearing facts for Outpost:
 

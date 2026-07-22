@@ -5,6 +5,22 @@ what would reverse it (mirrors the scope doc's escape-hatch philosophy).
 
 ---
 
+## D7 — GitPDM bumped v0.6.3 → v0.6.4 (Open/Clone first-run flow fix)
+
+**Decision:** `ARG GITPDM_VERSION=v0.6.4`. The tested pair for FreeCAD 1.1.1 is now
+**GitPDM v0.6.4 + HistoryWorkbench v0.1.0**.
+
+**Why:** v0.6.3's panel **Open/Clone repo** flow raised
+`'GitPDMDockWidget' object has no attribute '_on_github_connect_clicked'` — a refactor
+leftover (the GitHub connect handler had moved to `ConnectionsDialog`, but the call site
+in `panel.py._on_open_clone_repo_clicked` wasn't re-pointed). Found during the FreeCAD
+1.1.1 bring-up ([[D6]]); the bug was version-independent (present on v0.6.3 and main, not
+a 1.1.1 issue). Reported upstream with a fix spec; **fixed in GitPDM v0.6.4** — the call
+site now routes to `self._connections_dialog.request_github_connect`.
+
+**Reverses if:** a v0.6.4 regression surfaces — but v0.6.3's Open/Clone flow is broken,
+so prefer rolling *forward* to a later fix over pinning back.
+
 ## D6 — FreeCAD bumped to 1.1.1 (supersedes D2's 1.0.2 pin)
 
 **Decision:** `ARG FREECAD_VERSION=1.1.1`, x86_64 AppImage, SHA256
@@ -117,7 +133,7 @@ CalVer means this is routine, not exceptional.
 
 ## D1 — Addons baked image-internal, symlinked into `Mod/` at boot
 
-**Decision:** clone GitPDM (`v0.6.3`, MIT) and HistoryWorkbench (`v0.1.0`, LGPL-2.1)
+**Decision:** clone GitPDM (`v0.6.4`, MIT) and HistoryWorkbench (`v0.1.0`, LGPL-2.1)
 into `/opt/outpost/addons/` at build; a `custom-cont-init.d` script symlinks them
 into `$HOME/.local/share/FreeCAD/Mod/` at boot.
 

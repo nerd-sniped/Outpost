@@ -25,7 +25,7 @@ plan and `docs/DECISIONS.md` for the choices behind this build.
 What works today:
 
 - FreeCAD 1.1.1 in a browser tab via the Selkies base image (software-rendered GL).
-- GitPDM v0.6.3 + HistoryWorkbench v0.1.0 baked in as pinned addons.
+- GitPDM v0.6.4 + HistoryWorkbench v0.1.0 baked in as pinned addons.
 - Clone-on-boot from `GIT_REMOTE_URL`; first-run panel flow when it's unset.
 - SIGTERM → save + checkpoint to `gitpdm/recovery` (GitPDM's shipped hook).
 - `/healthz` on :8080 and an `outpost-authcheck` credential probe.
@@ -98,7 +98,7 @@ the roadmap.
 | Component        | Pin      | Notes                                            |
 |------------------|----------|--------------------------------------------------|
 | FreeCAD          | 1.1.1    | GitPDM↔HW pair verified on 1.1.x by the GitPDM owner; SHA256-verified. |
-| GitPDM           | v0.6.3   | CI-green tag (see `docs/PHASE0_VERIFICATION.md`).|
+| GitPDM           | v0.6.4   | Open/Clone flow fix over v0.6.3; tested pair with FreeCAD 1.1.1. |
 | HistoryWorkbench | v0.1.0   | LGPL-2.1, runtime interop only, never vendored.  |
 | Base image       | linuxserver `baseimage-selkies:ubuntunoble` | Display stack + RESTART_APP. |
 
