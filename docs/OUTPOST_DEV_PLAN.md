@@ -1,6 +1,6 @@
 # Outpost — Phased Development & Test Plan
 
-**Status:** Draft v1
+**Status:** Draft v1 · **Phases 0–2 complete; Phase 3 (Gatekeeper) is next.**
 **Companion docs:** `PROJECT_SCOPE.md` (what & why), `GITPDM_REQUIREMENTS.md` (addon requirements)
 **Principle:** every increment ends in something *runnable and testable*, never in scaffolding. Each phase has an exit gate; a phase does not start until the prior gate passes. Kill-criteria are listed where a result could change the plan rather than just delay it.
 
@@ -8,7 +8,57 @@ Suggested cadence labels: **S** (an evening), **M** (a weekend), **L** (a week o
 
 ---
 
-## Phase 0 — GitPDM dependency verification *(no longer a build phase)*
+## Progress & handoff (as of 2026-07-21)
+
+Snapshot for whoever takes the next phase. Per-phase status is also tagged inline below.
+
+| Phase | State | Evidence |
+| --- | --- | --- |
+| 0 — GitPDM verification | ✅ gates 0.1, 0.3 **PASS**; 0.2 (live token-in-container) **open** | `docs/PHASE0_VERIFICATION.md` |
+| 1 — The image | ✅ **PASS** — builds, FreeCAD 1.0.2 launches & stays up, addons baked, clone-on-boot, SIGTERM checkpoint, `/healthz`; benchmark 1.5 Runs 1–2 recorded, pass by a wide margin | `docs/DECISIONS.md` D1–D4, `scripts/benchmark/RESULTS.md` |
+| 2 — Rung 1 MVP | ✅ **PASS — exit gate met** (tag this milestone). Tailscale sidecar, zero host ports, verified on LAN + iPad Safari + phone on cellular + a second machine | `docs/DECISIONS.md` D5, `docs/PHASE2_VERIFICATION.md`, PR #1 |
+| 3 — Gatekeeper | ⬜ **NEXT** | this doc §Phase 3 |
+| 4 — Rung 2 publish | ⬜ blocked on 3 | — |
+
+**What's live in the repo right now:** one image (`Dockerfile`) → two run modes. Base
+`docker-compose.yml` = localhost-only (loopback ports). Overlay `compose.tailscale.yml`
++ `tailscale/serve.json` = remote access over Tailscale, zero host ports,
+`AUTH_MODE=tailscale`. FreeCAD launches **bare**; startup wiring lives in the
+`OutpostBoot` FreeCAD addon (D4). Token passed via env on rung 1.
+
+**Starting Phase 3 — what a fresh instance needs to know:**
+- **`AUTH_MODE` is already threaded but inert.** The tailscale overlay sets
+  `AUTH_MODE=tailscale`; the gatekeeper path is `AUTH_MODE=gatekeeper`. **Nothing
+  consumes `AUTH_MODE` yet** — Phase 3 is what wires it. Don't re-invent the marker.
+- **Credential chain caveat (the load-bearing one).** GitPDM's chain does **not**
+  auto-launch device flow when headless (deviation 2.9 — `interactive_resolver` seam is
+  unwired). The gatekeeper sidesteps this by **pre-populating the token file on tmpfs**
+  and letting GitPDM read `GITPDM_TOKEN_FILE` (highest precedence). It must **also set
+  `GITPDM_PROVIDER`** to match the token's host, or git-over-HTTPS pushes fail silently
+  (see §3.2). Rung 1's first-run panel flow (R2.4) is a *separate* unsolved item — not a
+  Phase 3 blocker, but don't assume GitPDM's chain covers it.
+- **Streaming-agnostic boundary is a hard constraint** (scope §gatekeeper): the shim
+  proxies generic HTTP/WebSocket only, nothing Selkies-specific. Protect this in review.
+- **Base-image conventions that constrain the shim:** Selkies HTTP on **:3000**, HTTPS
+  on :3001, Outpost `/healthz` on **:8080**; `PUID/PGID`; `shm_size` (1gb in compose).
+  **The WebSocket upgrade must be proxied** — Selkies is useless without it; the classic
+  proxy footgun, test it first (§3.1).
+- **Blast-radius framing** (drives the 24–48 h cookie default): a valid session includes
+  FreeCAD's Python console = arbitrary code execution + token read. This is *why* the
+  cookie life is capped and why the gatekeeper exists at all.
+
+**Open, non-blocking items carried forward** (log, don't gate on):
+- 0.2 live `auth.check` against a real throwaway PAT in the built image (structural —
+  needs a token + the image; wired as a CI/manual step).
+- A clean ~10-min upload-bandwidth number from a rung-1 session (feeds Phase 4.3 cost
+  model; `docs/PHASE2_VERIFICATION.md`).
+- Benchmark Run 3 (real Railway: constrained compute + WAN + real egress bill) is
+  Phase 4.3, deferred by design (`scripts/benchmark/RESULTS.md`).
+- **Milestone tag** for Phase 2 pending PR #1 merge.
+
+---
+
+## Phase 0 — GitPDM dependency verification *(no longer a build phase)* — ✅ 0.1/0.3 PASS, 0.2 open
 
 **Goal:** confirm GitPDM's headless surface is real and pinned before Outpost builds against it. As of GitPDM v0.6.3 the credential engine, checkpoint scheduler, SIGTERM hook, and provider abstraction are all **shipped and tested** — this phase is now verification, not development. (Storage-mode work is retired outright: GitPDM removed modes, delta is the only behavior.)
 **Repo:** GitPDM (verify only); Outpost (record the pin).
@@ -29,7 +79,7 @@ Sanity-check the four things Outpost hard-depends on, per GitPDM's deviations do
 
 ---
 
-## Phase 1 — The image
+## Phase 1 — The image — ✅ PASS
 
 **Goal:** FreeCAD in a browser tab on `localhost`. The llvmpipe question gets answered here, deliberately early.
 **Repo:** Outpost (new; sister to `nerd-sniped/GitPDM`).
@@ -61,7 +111,7 @@ Representative models: one ~50-part and one ~200-part assembly. On ~4 vCPU: reco
 
 ---
 
-## Phase 2 — Rung 1 complete (personal MVP)
+## Phase 2 — Rung 1 complete (personal MVP) — ✅ PASS (exit gate met)
 
 **Goal:** you, personally, doing CAD from a phone on cellular. Everything after this phase is distribution, not capability.
 
@@ -82,7 +132,7 @@ Phone on cellular (Wi-Fi off), tablet if available.
 
 ---
 
-## Phase 3 — Gatekeeper (the door key)
+## Phase 3 — Gatekeeper (the door key) — ⬜ NEXT
 
 **Goal:** public-URL deployments are safe. This phase is security-critical; its tests are adversarial, not happy-path.
 
