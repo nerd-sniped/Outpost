@@ -69,12 +69,17 @@ RUN chmod +x /defaults/autostart \
     ln -sf /opt/outpost/authcheck.sh /usr/local/bin/outpost-authcheck
 
 # Outpost defaults. Overridable per-deployment (.env / Railway template vars).
+# QT_SCALE_FACTOR: FreeCAD 1.1 (Qt6) leans harder on auto high-DPI scaling than 1.0.x,
+# which reads as an over-large UI on the fixed-DPI Selkies/Xvfb display. 0.9 shrinks the
+# whole UI uniformly back toward the 1.0.x feel. Tune per taste (0.85–1.0) via .env — it
+# takes effect on container recreate, no rebuild needed.
 ENV TITLE="Outpost" \
     GITPDM_PROVIDER="github" \
     GITPDM_HOST="github.com" \
     OUTPOST_REPO_ROOT="/config/repo" \
     OUTPOST_ADDONS_DIR="/opt/outpost/addons" \
-    RESTART_APP="true"
+    RESTART_APP="true" \
+    QT_SCALE_FACTOR="0.9"
 
 # 3000 HTTP / 3001 HTTPS (Selkies, from base) · 8080 Outpost /healthz
 EXPOSE 3000 3001 8080
