@@ -11,8 +11,8 @@ ARG SELKIES_BASE=lscr.io/linuxserver/baseimage-selkies:ubuntunoble
 FROM ${SELKIES_BASE}
 
 # --- Pins (all four are the knobs you bump; keep them in sync with docs/) ---
-ARG FREECAD_VERSION=1.0.2
-ARG FREECAD_SHA256=e00be00ad9fdb12b05c5002bfd1aa2ea8126f2c1d4e2fb603eb7423b72904f61
+ARG FREECAD_VERSION=1.1.1
+ARG FREECAD_SHA256=e2006138400b2fa85fa2e160e872d00767eb32964e85075830f7e198a3a876e1
 ARG FREECAD_ARCH=x86_64
 ARG GITPDM_VERSION=v0.6.3
 ARG HISTORY_WB_VERSION=v0.1.0
@@ -33,7 +33,7 @@ RUN apt-get update && \
 
 # --- FreeCAD AppImage: verify, extract (no FUSE), place at /opt/freecad ---
 RUN cd /tmp && \
-    AI="FreeCAD_${FREECAD_VERSION}-conda-Linux-${FREECAD_ARCH}-py311.AppImage" && \
+    AI="FreeCAD_${FREECAD_VERSION}-Linux-${FREECAD_ARCH}-py311.AppImage" && \
     curl -fsSL -o "$AI" \
       "https://github.com/FreeCAD/FreeCAD/releases/download/${FREECAD_VERSION}/${AI}" && \
     echo "${FREECAD_SHA256}  ${AI}" | sha256sum -c - && \

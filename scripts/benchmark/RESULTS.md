@@ -3,6 +3,11 @@
 Phase 1.5 measurement. Re-run on every FreeCAD bump. **Read the caveats** — the number
 that gates the Railway messaging is the *constrained* one, not the local baseline.
 
+> **Version note:** Runs 1–2 below were on **FreeCAD 1.0.2**. The image pin is now
+> **1.1.1** (see `docs/DECISIONS.md` D6). A re-run on 1.1.1 to refresh these numbers is
+> pending (non-blocking — the 1.0.2 numbers passed by a wide margin, and 1.1.x is not
+> expected to regress software-GL performance materially).
+
 ## Run 1 — local baseline (2026-07-21, FreeCAD 1.0.2)
 
 **Verdict: comfortably usable; llvmpipe is not a dealbreaker.** Both the ~50-part

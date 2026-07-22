@@ -48,6 +48,8 @@ Snapshot for whoever takes the next phase. Per-phase status is also tagged inlin
   cookie life is capped and why the gatekeeper exists at all.
 
 **Open, non-blocking items carried forward** (log, don't gate on):
+- FreeCAD bumped **1.0.2 → 1.1.1** (D6 — GitPDM↔HW pair verified on 1.1.1 by the GitPDM
+  owner). Benchmark 1.5 re-run on 1.1.1 to refresh `RESULTS.md` is pending.
 - 0.2 live `auth.check` against a real throwaway PAT in the built image (structural —
   needs a token + the image; wired as a CI/manual step).
 - A clean ~10-min upload-bandwidth number from a rung-1 session (feeds Phase 4.3 cost

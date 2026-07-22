@@ -5,6 +5,28 @@ what would reverse it (mirrors the scope doc's escape-hatch philosophy).
 
 ---
 
+## D6 — FreeCAD bumped to 1.1.1 (supersedes D2's 1.0.2 pin)
+
+**Decision:** `ARG FREECAD_VERSION=1.1.1`, x86_64 AppImage, SHA256
+`e2006138400b2fa85fa2e160e872d00767eb32964e85075830f7e198a3a876e1` (from FreeCAD's
+published `...-SHA256.txt` release asset).
+
+**Why now:** D2 pinned 1.0.2 and named the exact release condition — *"when the
+GitPDM↔HistoryWorkbench pair test lands, re-run the benchmark and bump if green."* The
+GitPDM maintainer (this project's owner) has **verified GitPDM + HistoryWorkbench
+working on 1.1.1** in the GitPDM repo, which is precisely the pair-test gate D2 waited
+on. With the pair validated by the party who owns it, staying on 1.0.2 no longer buys
+safety — it just ships an older FreeCAD.
+
+**Naming change caught in the bump:** the 1.1.x AppImage dropped the `conda-` segment —
+`FreeCAD_1.1.1-Linux-x86_64-py311.AppImage` (1.0.2 was `...-conda-Linux-...`). The
+Dockerfile's filename template was updated to match. Still py311, so the py311 self-check
+that forced 1.0.2 over 1.0.1 (see D2) is a non-issue at 1.1.1.
+
+**Reverses if:** a 1.1.1 regression surfaces in real use — pin back to 1.0.2 (restore
+the `conda-` filename segment and the D2 SHA256). The benchmark (`scripts/benchmark/`)
+should be re-run on 1.1.1 to refresh the numbers recorded there against 1.0.2.
+
 ## D5 — Tailscale reachability via a shared-netns sidecar + `serve`, userspace mode (Phase 2.1)
 
 **Decision:** ship `compose.tailscale.yml` as an overlay on the base compose. A
@@ -74,7 +96,7 @@ Selkies.
 `linuxserver/freecad`'s version cadence ends up matching our tested pairs anyway —
 then extending their image drops the extraction step. Low likelihood.
 
-## D2 — FreeCAD pinned to 1.0.2 (not 1.0.1, not latest 1.1.x)
+## D2 — FreeCAD pinned to 1.0.2 (not 1.0.1, not latest 1.1.x) — *superseded by [[D6]] (now 1.1.1)*
 
 **Decision:** `ARG FREECAD_VERSION=1.0.2`, x86_64 conda AppImage, SHA256
 `e00be00ad9fdb12b05c5002bfd1aa2ea8126f2c1d4e2fb603eb7423b72904f61`.
