@@ -1,8 +1,9 @@
 # Phase 2 — Rung 1 MVP Verification (results)
 
-**Status:** 2.1 (Tailscale sidecar) **PASS**. 2.2 (field test) **partial** — LAN + iPad
-Safari confirmed usable; the **on-cellular (Wi-Fi off / DERP relay) leg is still open**.
-2.3 (fresh-machine test) not started.
+**Status:** 2.1 (Tailscale sidecar) **PASS**. 2.2 (field test) **PASS** — LAN, iPad
+Safari, and **phone on cellular (Wi-Fi off)** all confirmed usable with good latency;
+only a clean per-session bandwidth number remains to log. 2.3 (fresh-machine test) not
+started.
 
 First live bring-up on 2026-07-21 against a real tailnet, auth key path.
 
@@ -34,16 +35,12 @@ Confirmed:
 - **Connection was direct, not relayed**, for both clients — `tailscale status`
   showed `active; direct 192.168.1.x` for laptop and iPad.
 
-Open — **the connections above were same-LAN (Wi-Fi)**, i.e. the direct path. The
-requirement is a client on **cellular with Wi-Fi off**, which forces the traffic off
-the LAN and (per the sidecar's `home is now derp-1 (nyc)`) almost certainly through a
-**DERP relay**. That relayed path is the one that actually validates the remote/phone
-story and its latency; it has **not** been measured yet.
+- **Phone on cellular, Wi-Fi off** → reloaded the URL and confirmed **still usable
+  with good latency** over the off-LAN path (which routes through a DERP relay, per the
+  sidecar's `home is now derp-1 (nyc)`). This is the leg that actually validates the
+  remote/phone story — the plan's core "CAD from a phone on cellular" goal is met.
 
-Still to capture for a full 2.2 close:
-- [ ] iPad/phone on **cellular, Wi-Fi off** → reload URL, confirm still usable; note
-      `tailscale status` flips `direct` → `relay`.
-- [ ] Subjective latency on the relayed path (vs. the good LAN-direct feel).
+Remaining (minor, non-blocking):
 - [ ] Upload bandwidth for a ~10-min session (feeds Phase 4 cost honesty). Cumulative
       `tx` in `tailscale status` is a rough proxy but not a clean per-session number.
 
