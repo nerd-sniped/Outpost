@@ -16,8 +16,9 @@ disposable by design.
 
 ## Status
 
-**Phase 2 — rung 1 MVP.** Buildable and boot-testable now. Runs on `localhost`, or over
-Tailscale for phone/remote access with no open ports. The gatekeeper door-key (Phase 3)
+**Phase 2 — rung 1 MVP, verified.** The personal MVP is done: FreeCAD in a browser,
+reachable from a phone on cellular over Tailscale with zero open ports, confirmed on a
+second machine (see `docs/PHASE2_VERIFICATION.md`). The gatekeeper door-key (Phase 3)
 and Railway template (Phase 4) follow. See `docs/OUTPOST_DEV_PLAN.md` for the full phase
 plan and `docs/DECISIONS.md` for the choices behind this build.
 

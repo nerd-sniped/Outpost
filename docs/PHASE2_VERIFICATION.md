@@ -1,9 +1,11 @@
 # Phase 2 — Rung 1 MVP Verification (results)
 
 **Status:** 2.1 (Tailscale sidecar) **PASS**. 2.2 (field test) **PASS** — LAN, iPad
-Safari, and **phone on cellular (Wi-Fi off)** all confirmed usable with good latency;
-only a clean per-session bandwidth number remains to log. 2.3 (fresh-machine test) not
-started.
+Safari, and **phone on cellular (Wi-Fi off)** all confirmed usable with good latency.
+2.3 (fresh-machine test) **PASS** — brought up and reached working CAD on a second
+machine. Only a clean per-session bandwidth number remains to log (non-blocking).
+
+**Phase 2 exit gate: met.** This is the rung-1 personal MVP — tag the milestone.
 
 First live bring-up on 2026-07-21 against a real tailnet, auth key path.
 
@@ -56,17 +58,22 @@ Reading failed from embedded file: WallTrace*.InternalShape.bin (0 bytes, 2 byte
 ```
 
 Reading:
+- The model was a **FreeCAD sample that loaded automatically** — nothing was cloned.
+  Most plausibly a resource/load spike (several things loading at once) under software
+  rendering, not a reproducible fault; it did not recur.
 - This is **FreeCAD's own transient auto-recovery**, not GitPDM's `gitpdm/recovery`
   branch — a different durability mechanism. The recovery snapshot preserved the
   document tree but not the geometry `.bin` blobs (0-byte `InternalShape`), so FreeCAD
   reported the empty reads and recomputes the shapes. Not an Outpost-side fault.
-- `WallTrace` objects = a BIM/Arch (walls) model. The crash is a likely **Phase 1.5
-  (llvmpipe) stability data point**: software-rendering a heavy BIM assembly is exactly
-  where a software-GL crash would originate.
-- Follow-up: identify the model (FreeCAD sample vs. cloned repo) and whether re-opening
-  reproduces the crash. If it reproduces, it belongs in the 1.5 benchmark notes.
+- `WallTrace` objects = a BIM/Arch (walls) model — the kind of heavy assembly where a
+  software-GL (llvmpipe) crash would originate. Logged as a **Phase 1.5 data point**,
+  not a bug to chase: one-off, recovered cleanly, did not reproduce.
 
-## 2.3 — Docs + fresh-machine test
+## 2.3 — Docs + fresh-machine test ✅
 
-Not started. The README quickstart + Tailscale section exist; the real test (a fresh
-machine reaching working CAD from the README alone) is pending.
+Brought up on a **second machine** following the documented setup and reached working
+CAD in the browser. The README quickstart + Tailscale section held up on a machine that
+wasn't the original dev box. No doc-blocking deviations reported.
+
+Remaining (minor, non-blocking): log a clean per-session upload bandwidth number for
+the Phase 4 cost model.
