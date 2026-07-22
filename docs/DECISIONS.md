@@ -5,6 +5,41 @@ what would reverse it (mirrors the scope doc's escape-hatch philosophy).
 
 ---
 
+## D5 — Tailscale reachability via a shared-netns sidecar + `serve`, userspace mode (Phase 2.1)
+
+**Decision:** ship `compose.tailscale.yml` as an overlay on the base compose. A
+`tailscale/tailscale` sidecar owns the network namespace; `outpost` joins it with
+`network_mode: service:tailscale`. `tailscale serve` (config in `tailscale/serve.json`)
+terminates HTTPS on :443 with a real cert and reverse-proxies to Selkies on
+`127.0.0.1:3000`. Tailnet-only — **no Funnel**. Default to **userspace** networking
+(`TS_USERSPACE=true`). `AUTH_MODE=tailscale` is set on the outpost service.
+
+**Why shared netns (not a bridge-network proxy):** `tailscale serve` proxies to
+localhost within its own netns; sharing the netns is the reliable, documented pattern
+and means Selkies binds **no host port at all** — satisfying the phase gate's "zero
+listening ports on the public interface" directly, not just by binding loopback.
+
+**Why `ports: !reset []` on outpost:** publishing ports is incompatible with
+`network_mode: service:`, and Compose's default merge *appends* the base file's
+`127.0.0.1:3000/8080` list rather than replacing it. `!reset []` (Compose ≥ 2.24)
+clears it so the overlay contributes zero published ports. The base file stays a
+clean localhost-only Phase 1 run on its own.
+
+**Why userspace mode:** portable across hosts without `/dev/net/tun` (Docker Desktop
+included, which is the dev box) and needs no `NET_ADMIN`. `serve` works in userspace.
+**Reverses to kernel mode** for a Linux host wanting throughput: set
+`TS_USERSPACE=false` and add `cap_add: [NET_ADMIN]` + `devices: [/dev/net/tun:/dev/net/tun]`
+to the tailscale service.
+
+**Why no Funnel:** rung 1's boundary is the tailnet itself; a full FreeCAD Python
+console behind the URL must not face the public internet until the gatekeeper (Phase 3)
+pins identity. `AUTH_MODE=tailscale` records that boundary; nothing consumes it yet.
+
+**Validation status:** `docker compose ... config` renders the merged file correctly
+(netns shared, ports dropped, cert-domain templating intact). The live tailnet round
+trip (2.2 field test — phone on cellular, iPad Safari decode, `ss -tlnp` zero-ports
+check) is manual and still pending a real auth key.
+
 ## D4 — Startup wiring via a FreeCAD addon, not a command-line script (Phase 1.1)
 
 **Decision:** launch FreeCAD **bare** (`exec /opt/freecad/AppRun`, no arguments) and
