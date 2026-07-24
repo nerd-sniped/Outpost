@@ -39,7 +39,7 @@ services:
     restart: unless-stopped
 
   outpost:
-    # Share the tailscale sidecar's network stack. Selkies (:3000) and /healthz (:8080)
+    # Share the tailscale sidecar's network stack. Selkies (:3000) and /healthz (:8090)
     # now live inside that netns, reachable only via `tailscale serve` — not the host.
     network_mode: "service:tailscale"
     # Drop the base file's 127.0.0.1 port publishing: publishing is incompatible with

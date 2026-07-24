@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Outpost health endpoint (Phase 1.4). Tiny stdlib HTTP server on :8080.
+"""Outpost health endpoint (Phase 1.4). Tiny stdlib HTTP server on :8090.
 
   GET /healthz  -> 200 always-when-up (liveness). JSON body includes auth status.
   GET /authz    -> 200 if GitPDM credentials resolve (runs auth.check), else 503.
@@ -14,7 +14,7 @@ import subprocess
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ADDONS = os.environ.get("OUTPOST_ADDONS_DIR", "/opt/outpost/addons")
-PORT = int(os.environ.get("OUTPOST_HEALTHZ_PORT", "8080"))
+PORT = int(os.environ.get("OUTPOST_HEALTHZ_PORT", "8090"))
 
 
 def _auth_ok():

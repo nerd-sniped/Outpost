@@ -1,4 +1,4 @@
 #!/usr/bin/with-contenv bash
 # Supervised by linuxserver's s6 layer. Stays foreground (no daemonizing) so s6 can
-# watch it. Serves Outpost's /healthz + /authz on :8080.
+# watch it. Serves Outpost's /healthz + /authz on :8090.
 exec python3 /opt/outpost/healthz.py

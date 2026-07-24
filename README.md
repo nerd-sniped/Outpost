@@ -16,14 +16,23 @@ disposable by design.
 
 ## Status
 
-**Phase 3 — gatekeeper verified, exit gate met.** Rung 1 (Phase 2) is done and tagged:
+**Phase 4 exit gate met — Railway deploy is live and running continuously.** Manual
+CLI deploy to Railway (`railway.json` + `docs/PHASE4_DEPLOY.md`) works end-to-end on
+a real public URL: gatekeeper sign-in, device-flow login, GitPDM clone/edit/commit/push
+all verified working. Railway's own sleep/wake never reliably triggers
+(`docs/DECISIONS.md` D11) — rather than chase that further or add a
+latency-costing workaround, Outpost just runs continuously, with an owner-only
+manual shutdown control as an escape hatch (D12). Four real, live-test-only findings
+fixed along the way (D9–D12). Phase 6 (cost validation over real use, a touch pass,
+and a stranger-deploys-from-the-listing test) is next — each needs calendar time or
+other people, not another deploy session. Rung 1 (Phase 2) is done and tagged:
 FreeCAD in a browser, reachable from a phone on cellular over Tailscale with zero open
 ports, confirmed on a second machine (see `docs/PHASE2_VERIFICATION.md`). The gatekeeper
 door-key — device-flow login, identity-pinned session, token handoff to GitPDM — passed
 its full adversarial test pass against a real GitHub OAuth App and two real accounts
 (see `docs/PHASE3_VERIFICATION.md`): wrong-account rejection, tampered/expired cookies,
 restart/recreate token self-heal, `SESSION_SECRET` rotation, and the two-step panic
-procedure all confirmed working. The Railway template (Phase 4) is next.
+procedure all confirmed working.
 See `docs/OUTPOST_DEV_PLAN.md` for the full phase plan and `docs/DECISIONS.md` for the
 choices behind this build.
 
@@ -33,7 +42,7 @@ What works today:
 - GitPDM v0.6.3 + HistoryWorkbench v0.1.0 baked in as pinned addons.
 - Clone-on-boot from `GIT_REMOTE_URL`; first-run panel flow when it's unset.
 - SIGTERM → save + checkpoint to `gitpdm/recovery` (GitPDM's shipped hook).
-- `/healthz` on :8080 and an `outpost-authcheck` credential probe.
+- `/healthz` on :8090 and an `outpost-authcheck` credential probe.
 - Tailscale sidecar: `https://freecad.<tailnet>.ts.net`, zero host ports (Phase 2.1).
 - Gatekeeper: GitHub device-flow login, identity-pinned to one account, encrypted
   session cookie, token handoff to GitPDM — see "Reach it from the public internet"
@@ -149,5 +158,4 @@ Bump via the `ARG`s in the `Dockerfile` (or `docker-compose.yml` build args).
 
 ## License
 
-TBD. GitPDM (MIT) and HistoryWorkbench (LGPL-2.1) are consumed as separate addons,
-not vendored.
+

@@ -10,6 +10,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -35,9 +36,17 @@ import (
 )
 
 const (
-	selkiesUpstream = "http://127.0.0.1:3000"
-	healthzUpstream = "http://127.0.0.1:8080"
-	cookieName      = "outpost_session"
+	selkiesUpstream        = "http://127.0.0.1:3000"
+	defaultHealthzPort     = "8090"
+	cookieName             = "outpost_session"
+	railwayGraphQLEndpoint = "https://backboard.railway.com/graphql/v2"
+
+	// checkpointDrainDelay: how long shutdownHandler waits, after signaling
+	// FreeCAD directly, before calling stopRailwayDeployment. Phase 1.4 measured
+	// the SIGTERM checkpoint hook completing in under 10s; this adds real margin
+	// on top rather than cutting it close. See D12 for why this exists instead
+	// of using Railway's own drain-time mechanism.
+	checkpointDrainDelay = 12 * time.Second
 )
 
 var (
@@ -46,6 +55,13 @@ var (
 	tokenFile       string
 	sessionLifetime time.Duration
 	aesKey          [32]byte
+
+	// Both empty unless a Railway project token is configured (docs/DECISIONS.md
+	// D12) — the in-session shutdown control is entirely absent, not just
+	// disabled, when these are unset (e.g. local compose.gatekeeper.yml testing,
+	// where there's no Railway API to call).
+	railwayAPIToken     string
+	railwayDeploymentID string
 
 	selkiesProxy *httputil.ReverseProxy
 	healthzProxy *httputil.ReverseProxy
@@ -70,12 +86,60 @@ func main() {
 		}
 	}
 
+	// OUTPOST_HEALTHZ_PORT must agree with healthz.py's own env var of the same name
+	// (root/opt/outpost/healthz.py) — one source of truth, so the gatekeeper's proxy
+	// target can't silently drift from the port healthz.py actually binds. Also keeps
+	// this away from the internal port Railway's injected PORT collided with once
+	// already (see docs/DECISIONS.md D9): whatever PORT ends up being, it must never
+	// equal this value or the gatekeeper fails to bind its own listener.
+	healthzPort := os.Getenv("OUTPOST_HEALTHZ_PORT")
+	if healthzPort == "" {
+		healthzPort = defaultHealthzPort
+	}
+	healthzUpstream := "http://127.0.0.1:" + healthzPort
+
 	selkiesProxy = mustProxy(selkiesUpstream)
 	healthzProxy = mustProxy(healthzUpstream)
+
+	// Self-service shutdown (docs/DECISIONS.md D12): Railway's own sleepApplication
+	// doesn't reliably trigger (D11), and its API has no way to manually enter that
+	// state with auto-wake preserved — the closest lever is deploymentStop, called
+	// here on request. RAILWAY_DEPLOYMENT_ID is auto-injected by Railway; the token
+	// is not, so its presence is what gates the whole feature on.
+	railwayAPIToken = os.Getenv("RAILWAY_API_TOKEN")
+	railwayDeploymentID = os.Getenv("RAILWAY_DEPLOYMENT_ID")
+	if railwayAPIToken != "" && railwayDeploymentID != "" {
+		origDirector := selkiesProxy.Director
+		selkiesProxy.Director = func(req *http.Request) {
+			origDirector(req)
+			// ModifyResponse below only handles plain bodies — strip Accept-Encoding
+			// on the way out so Selkies'/nginx's response never arrives gzipped
+			// rather than teaching ModifyResponse to transparently decode/re-encode.
+			req.Header.Del("Accept-Encoding")
+			// nginx serves Selkies' page shell as a static file with an ETag/
+			// Last-Modified that never changes across our own deploys (it's baked
+			// into the base image). Without this, a browser that already has any
+			// cached copy — including from before this feature existed — can get
+			// 304 Not Modified back forever and keep reusing its stale body,
+			// which no ordinary hard refresh fixes (304 is a *valid* answer to a
+			// revalidation request, not something a refresh bypasses). Stripping
+			// the conditional-request headers forces a full 200 + body every
+			// time, so ModifyResponse always gets a real chance to inject.
+			req.Header.Del("If-None-Match")
+			req.Header.Del("If-Modified-Since")
+		}
+		selkiesProxy.ModifyResponse = injectShutdownUI
+		log.Print("gatekeeper: self-service shutdown enabled (RAILWAY_API_TOKEN set)")
+	} else {
+		log.Print("gatekeeper: self-service shutdown disabled (RAILWAY_API_TOKEN/RAILWAY_DEPLOYMENT_ID not set)")
+	}
 
 	port := os.Getenv("PORT")
 	if port == "" {
 		port = "8081"
+	}
+	if port == healthzPort {
+		log.Fatalf("gatekeeper: PORT (%s) collides with OUTPOST_HEALTHZ_PORT (%s) — refusing to start", port, healthzPort)
 	}
 
 	log.Printf("gatekeeper: listening on :%s (allowed_user=%s)", port, allowedUser)
@@ -116,6 +180,9 @@ func router(w http.ResponseWriter, r *http.Request) {
 		return
 	case "/gatekeeper/poll":
 		pollHandler(w, r)
+		return
+	case "/gatekeeper/shutdown":
+		shutdownHandler(w, r)
 		return
 	}
 
@@ -644,4 +711,203 @@ func pollHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Cache-Control", "no-store")
 	json.NewEncoder(w).Encode(map[string]string{"status": status})
+}
+
+// --- Self-service shutdown (docs/DECISIONS.md D12) ---------------------------
+//
+// Railway's own inactivity-based sleep doesn't reliably trigger for this
+// deployment (D11), and Railway's public API has no way to manually enter that
+// state with auto-wake preserved — the closest available lever is deploymentStop,
+// which this calls directly on an authenticated in-session request. Deliberately
+// NOT automatic: no idle-timer here, no background polling — a human decides.
+
+// injectShutdownUI is selkiesProxy's ModifyResponse hook, wired up in main() only
+// when RAILWAY_API_TOKEN/RAILWAY_DEPLOYMENT_ID are both set. Rewrites only
+// text/html responses (Selkies' own page shell) to add a floating button + a
+// keyboard-shortcut listener — everything else (JS, CSS, the WebSocket upgrade)
+// passes through completely untouched. Requires the Director to have stripped
+// Accept-Encoding on the outbound request (see main()) so the body here is
+// always plain, uncompressed bytes — this function does not handle gzip itself.
+func injectShutdownUI(resp *http.Response) error {
+	if !strings.Contains(resp.Header.Get("Content-Type"), "text/html") {
+		return nil
+	}
+	body, err := io.ReadAll(resp.Body)
+	resp.Body.Close()
+	if err != nil {
+		return err
+	}
+
+	// Strip nginx's static-file caching headers and forbid caching this specific
+	// response outright — this page must always be re-fetched (and re-injected)
+	// on the next visit, never served from the browser's own cache. Pairs with
+	// the Director stripping If-None-Match/If-Modified-Since on the way in;
+	// this half protects future requests, that half protects this one.
+	resp.Header.Del("ETag")
+	resp.Header.Del("Last-Modified")
+	resp.Header.Set("Cache-Control", "no-store")
+
+	const marker = "</body>"
+	if idx := bytes.LastIndex(body, []byte(marker)); idx != -1 {
+		var buf bytes.Buffer
+		buf.Write(body[:idx])
+		buf.WriteString(shutdownUISnippet)
+		buf.Write(body[idx:])
+		body = buf.Bytes()
+	} else {
+		body = append(body, []byte(shutdownUISnippet)...)
+	}
+
+	resp.Body = io.NopCloser(bytes.NewReader(body))
+	resp.ContentLength = int64(len(body))
+	resp.Header.Set("Content-Length", strconv.Itoa(len(body)))
+	return nil
+}
+
+// A floating button (discoverable — the whole point, per the design discussion in
+// DECISIONS.md D12: a hidden-only keyboard shortcut fails "intuitive for someone
+// not comfortable with computers") plus Ctrl+Alt+End as a bonus shortcut for
+// anyone who prefers it. Not plain Ctrl+Alt+Delete — that combo is intercepted by
+// the local OS before it ever reaches a browser tab, the same reason real
+// RDP/VNC clients substitute Ctrl+Alt+End. The keydown listener is registered
+// with capture:true and calls stopPropagation so it fires before (and instead
+// of) Selkies' own input-forwarding listeners — best-effort, not a hard
+// guarantee, since that depends on Selkies not also using capture phase.
+//
+// Self-healing by design, not just a one-time DOM insert: Selkies is a
+// single-page app that manages its own DOM after the initial page load and was
+// observed wiping out a plain static injection shortly after render (confirmed
+// live — the button was present in the served HTML but never visible in the
+// browser). ensureButton() re-creates the element on a short interval if it's
+// missing; once created via appendChild(), the running JS (the interval timer,
+// the event listeners) survives even if Selkies later clears/rebuilds
+// document.body's children again, since a JS execution context doesn't depend
+// on the DOM node that originally contained the <script> tag still existing.
+const shutdownUISnippet = `<script>
+(function(){
+  var BTN_ID = 'outpost-shutdown-btn';
+  var shuttingDown = false;
+
+  function confirmAndShutdown(){
+    if(shuttingDown) return;
+    if(!window.confirm('Shut down the Outpost server?\n\nThis stops the server completely. Any unsaved work is checkpointed automatically first (can take up to 15 seconds).\n\nIMPORTANT: visiting this URL again will NOT restart it automatically — whoever manages this deployment will need to restart it from the Railway dashboard or CLI. Only proceed if you know how to do that.')) return;
+    shuttingDown = true;
+    // Shown immediately, not after the request resolves — the server deliberately
+    // waits ~12s (letting FreeCAD's checkpoint hook finish) before it actually
+    // stops anything, and the container may disappear mid-response once it does,
+    // so waiting for a clean fetch() resolution here isn't reliable.
+    (document.body || document.documentElement).innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui,sans-serif;color:#eee;background:#111;margin:0;"><div style="text-align:center;"><h2>Shutting down&hellip;</h2><p>Saving any unsaved work first, then stopping the server &mdash; this takes up to 15 seconds.</p><p>You can close this tab now. This URL will <strong>not</strong> restart the server automatically &mdash; it needs to be restarted from the Railway dashboard or CLI.</p></div></div>';
+    fetch('/gatekeeper/shutdown', {method:'POST'}).catch(function(){ /* container may already be gone by the time this settles — expected, not an error */ });
+  }
+
+  function ensureButton(){
+    if(shuttingDown || document.getElementById(BTN_ID)) return;
+    var btn = document.createElement('div');
+    btn.id = BTN_ID;
+    btn.title = 'Shut down server (stops billing; visit this URL again to restart)';
+    btn.style.cssText = 'position:fixed;bottom:14px;right:14px;z-index:2147483647;width:42px;height:42px;border-radius:50%;background:#c0392b;color:#fff;display:flex;align-items:center;justify-content:center;cursor:pointer;font-family:system-ui,sans-serif;font-size:20px;box-shadow:0 2px 8px rgba(0,0,0,.45);user-select:none;';
+    btn.textContent = '⏻';
+    btn.addEventListener('click', confirmAndShutdown);
+    (document.body || document.documentElement).appendChild(btn);
+  }
+
+  ensureButton();
+  setInterval(ensureButton, 1500);
+
+  window.addEventListener('keydown', function(e){
+    if(e.ctrlKey && e.altKey && e.code === 'End'){
+      e.preventDefault();
+      e.stopPropagation();
+      confirmAndShutdown();
+    }
+  }, true);
+})();
+</script>
+`
+
+func shutdownHandler(w http.ResponseWriter, r *http.Request) {
+	if p := validSession(r); p == nil {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+	if r.Method != http.MethodPost {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if railwayAPIToken == "" || railwayDeploymentID == "" {
+		http.Error(w, "shutdown not configured on this deployment", http.StatusServiceUnavailable)
+		return
+	}
+	log.Print("gatekeeper: shutdown requested")
+
+	// Give FreeCAD's own SIGTERM checkpoint hook (Phase 1.4, GitPDM's
+	// register_sigterm_handler — save dirty document, push to gitpdm/recovery,
+	// tested to complete in under 10s) a clean run before asking Railway to stop
+	// the container at all. Deliberately NOT relying on Railway's own
+	// SIGTERM-to-SIGKILL buffer (RAILWAY_DEPLOYMENT_DRAINING_SECONDS) for this —
+	// setting that variable broke container boot outright on this base image
+	// (s6-overlay requires being PID 1; Railway appears to wrap the entrypoint
+	// when that variable is set, which breaks the requirement — see
+	// docs/DECISIONS.md D12). Signaling FreeCAD directly and waiting here, before
+	// stopRailwayDeployment is ever called, sidesteps the problem entirely: by
+	// the time Railway tears the container down, there's nothing left to save,
+	// so however abruptly it does that no longer matters.
+	if err := exec.Command("pkill", "-TERM", "-f", "/opt/freecad/usr/bin/freecad").Run(); err != nil {
+		log.Printf("gatekeeper: signaling FreeCAD before shutdown (continuing regardless): %v", err)
+	}
+	time.Sleep(checkpointDrainDelay)
+
+	if err := stopRailwayDeployment(); err != nil {
+		log.Printf("gatekeeper: shutdown request failed: %v", err)
+		http.Error(w, "shutdown request failed", http.StatusBadGateway)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	io.WriteString(w, "shutting down")
+}
+
+type graphQLError struct {
+	Message string `json:"message"`
+}
+
+type graphQLResponse struct {
+	Errors []graphQLError `json:"errors"`
+}
+
+// stopRailwayDeployment calls Railway's public API directly (no SDK dependency
+// for one mutation). Uses the Project-Access-Token header, not Authorization —
+// that's specific to project-scoped tokens (see DECISIONS.md D12 for why a
+// project token, not an account token, is what RAILWAY_API_TOKEN must be).
+func stopRailwayDeployment() error {
+	payload, err := json.Marshal(map[string]interface{}{
+		"query":     `mutation deploymentStop($id: String!) { deploymentStop(id: $id) }`,
+		"variables": map[string]string{"id": railwayDeploymentID},
+	})
+	if err != nil {
+		return err
+	}
+	req, err := http.NewRequest(http.MethodPost, railwayGraphQLEndpoint, bytes.NewReader(payload))
+	if err != nil {
+		return err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Project-Access-Token", railwayAPIToken)
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return err
+	}
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("railway api: status %d: %s", resp.StatusCode, string(body))
+	}
+	var gr graphQLResponse
+	if err := json.Unmarshal(body, &gr); err == nil && len(gr.Errors) > 0 {
+		return fmt.Errorf("railway api: %s", gr.Errors[0].Message)
+	}
+	return nil
 }

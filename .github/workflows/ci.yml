@@ -28,10 +28,10 @@ jobs:
 
       - name: Boot smoke test (container stays up 60s, /healthz answers)
         run: |
-          docker run -d --name outpost --shm-size=1gb -p 8080:8080 outpost:ci
+          docker run -d --name outpost --shm-size=1gb -p 8090:8090 outpost:ci
           # /healthz should come up; auth is legitimately "absent" with no token.
           for i in $(seq 1 24); do
-            if curl -fsS http://localhost:8080/healthz; then ok=1; break; fi
+            if curl -fsS http://localhost:8090/healthz; then ok=1; break; fi
             sleep 5
           done
           echo

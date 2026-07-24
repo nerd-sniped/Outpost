@@ -108,36 +108,79 @@ Also ship the documented **panic procedure** (stolen logged-in device): rotate `
 
 ## Phase 4 — Rung 2 publish (Railway)
 
-**Goal:** a stranger deploys from the template directory and reaches working CAD without contacting you.
+**Goal:** the deployment mechanics work end-to-end on a real public Railway URL —
+the CLI-first deploy itself, and living with (or working around) Railway's own
+platform behavior around idle cost. Validating that a *stranger* can do this from a
+template listing, and that the published cost claims hold up, moved to Phase 6 —
+those need calendar time and other people, not something a single deploy session
+proves.
 
 ### 4.1 Manual Railway deploy (S)
 Same image, `AUTH_MODE=gatekeeper`, via CLI first.
 **Test:** full flow from `PROJECT_SCOPE.md` §3 works end-to-end on the public URL.
+**Status: exit gate met.** See `docs/PHASE4_DEPLOY.md` §4 and `docs/DECISIONS.md`
+D9/D10 for the two real bugs the live test surfaced and fixed along the way.
 
 ### 4.2 Sleep/wake behaviour (S)
 Serverless mode on.
 **Test:** idle 15 min → confirm sleep (dashboard shows no compute billing); revisit URL → measure wake time (target: seconds, record actual); **cookie survives the sleep** so wake ≠ re-auth; active video stream does *not* trigger sleep mid-session (stream for 20 min, confirm no interruption).
+**Status: root cause not resolved, accepted with a workaround instead of blocking
+here indefinitely.** Railway's `sleepApplication` never triggers for this
+deployment despite confirmed-zero application-level activity (`docs/DECISIONS.md`
+D11) — filed with Railway support, not guessed at further. A self-managed
+watchdog/proxy fix was considered and explicitly rejected (D12): the ongoing
+latency cost on every request isn't worth it to avoid a small, bounded idle cost.
+Outpost now runs continuously; an owner-only manual shutdown button exists as an
+escape hatch (D12), not a public control.
 
-### 4.3 💰 Cost validation (M) — *the honesty gate*
-One week of realistic personal use on Railway (~5–10 hrs).
-**Test:** actual bill vs. the $10–20/mo estimate. Egress is the number to watch (compare against 2.2's bandwidth measurement). If reality is >1.5× estimate, either tune Selkies (bitrate cap, adaptive framerate, resolution ceiling) or **change the template description** — the estimate must match reality before strangers see it.
-
-### 4.4 Touch pass (M)
-iPad Safari + Android Chrome, finger and stylus/mouse where available.
-**Test:** the four CAD-critical gestures — orbit, pan, zoom, right-click emulation — verified per platform; GitPDM commit flow completable by finger (R2.6); findings written into an honest "input devices" doc section (expected outcome: *iPad + mouse = good; bare finger = field access, not authoring*).
-
-### 4.5 Template publish + stranger test (S)
-`railway.json`, template listing with the *validated* cost estimate and benchmark-informed assembly-size guidance.
-**Test:** someone who is not you, from the directory listing alone, deploys and pushes a commit. Their confusion points are the final doc bugs.
-
-**Phase 4 exit gate:** stranger test passes; published cost/perf claims match measured reality.
-**Kill-criterion (cheap, pre-agreed):** if llvmpipe framing + real costs make the template a bad product, don't publish — rung 1 is untouched and the gatekeeper still serves any future host.
+**Phase 4 exit gate: met**, on the terms above — deployment mechanics work, and the
+one open platform issue (sleep/wake) has a deliberate, documented resolution rather
+than a silent gap.
 
 ---
 
 ## Phase 5 — Demand-driven polish (no exit gate; backlog, not commitment)
 
 GPU compose overlay (NVENC) + docs · Wake-on-LAN guide · FreeCAD touch-profile preset (large toolbars) · recovery-restore integration test (kill container mid-session → GitPDM offers restore from `gitpdm/recovery` on next boot — exercises GitPDM's already-shipped checkpoint restore, not new code) · Fly.io port of the gatekeeper flow (same image, proves portability claim) · GitLab.com device-flow provider (exercises token refresh in production; note GitLab is PAT-only in GitPDM today per the capability matrix).
+
+**Considered and explicitly rejected, not deferred: a self-managed sleep/wake
+watchdog** (a second always-on service fronting Outpost's domain — proxy through if
+running, show a "wake it up" page if not, working around `sleepApplication` never
+triggering per `docs/DECISIONS.md` D11). Built the shutdown half first (D12: an
+in-session button + `Ctrl+Alt+End` calling `deploymentStop`), which surfaced the real
+shape of the trade-off: the watchdog would add a permanent proxy hop to every request
+of a WebSocket-heavy, latency-sensitive streaming app (D10 already fights for every
+millisecond there) to save a bounded, already-small idle cost (~$0.40/day, ~$12–13/mo
+worst case, D11). Decided the ongoing latency cost isn't worth paying to avoid a
+small, capped dollar cost — Outpost runs continuously now; the shutdown button stays
+as an owner-only manual escape hatch (its confirm dialog says restarting needs
+dashboard/CLI access), not a public-facing control. Revisit only if the usage pattern
+changes to genuinely-idle-for-weeks, where a rarely-paid proxy hop would be a better
+trade than it is for routine daily use.
+
+---
+
+## Phase 6 — Rung 2 validation & rollout (post-deployment)
+
+**Goal:** a stranger deploys from the template directory and reaches working CAD
+without contacting you. Split out from Phase 4 because these three all need
+something a single deploy session can't produce — calendar time, other people's
+devices, or an actual stranger — not because they're less load-bearing than 4.1/4.2.
+
+### 6.1 💰 Cost validation (M) — *the honesty gate*
+One week of realistic personal use on Railway (~5–10 hrs).
+**Test:** actual bill vs. the $10–20/mo estimate. Egress is the number to watch (compare against 2.2's bandwidth measurement). If reality is >1.5× estimate, either tune Selkies (bitrate cap, adaptive framerate, resolution ceiling) or **change the template description** — the estimate must match reality before strangers see it. Note the now-continuous (no sleep/wake) deploy pattern (Phase 4.2) when interpreting this number — it's a real always-on cost, not a sleep-optimized one.
+
+### 6.2 Touch pass (M)
+iPad Safari + Android Chrome, finger and stylus/mouse where available.
+**Test:** the four CAD-critical gestures — orbit, pan, zoom, right-click emulation — verified per platform; GitPDM commit flow completable by finger (R2.6); findings written into an honest "input devices" doc section (expected outcome: *iPad + mouse = good; bare finger = field access, not authoring*).
+
+### 6.3 Template publish + stranger test (S)
+`railway.json`, template listing with the *validated* cost estimate and benchmark-informed assembly-size guidance.
+**Test:** someone who is not you, from the directory listing alone, deploys and pushes a commit. Their confusion points are the final doc bugs.
+
+**Phase 6 exit gate:** stranger test passes; published cost/perf claims match measured reality.
+**Kill-criterion (cheap, pre-agreed):** if llvmpipe framing + real costs make the template a bad product, don't publish — rung 1 is untouched and the gatekeeper still serves any future host.
 
 ---
 
@@ -151,9 +194,10 @@ GPU compose overlay (NVENC) + docs · Wake-on-LAN guide · FreeCAD touch-profile
 
 ```
 0 (verify pin) ──► 1.1 ──► 1.3 ──► 1.4 ──► 2.x (rung 1 MVP)
-                                  └──► 3.x ──► 4.x (rung 2)
+                                  └──► 3.x ──► 4.x (rung 2 deploy) ──► 6.x (validation & rollout)
 1.5 gates only *messaging*, never build order
 G8 (HW adapter, GitPDM-side) ──► 1.3's visual-diff test
+Phase 5 is backlog, not on this critical path at all
 ```
 
 The critical path to your personal MVP is **Phase 0 verify → 1.1–1.4 → 2.1–2.3**. Because Phase 0 collapsed from a build phase into a verification gate (GitPDM shipped the credential engine, checkpointing, and SIGTERM hook already), this is now roughly **three to five focused weekends** — the credential/checkpoint work that was the largest chunk of the original estimate is done. Everything else is distribution.

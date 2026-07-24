@@ -19,7 +19,7 @@ services:
     # `!override` (not `!reset` — that tag only clears a field to empty, verified;
     # replacing with a *non-empty* list needs `!override`) replaces the base file's
     # ports list outright instead of the default merge-append. Deliberately NOT
-    # publishing 3000 (Selkies) or 8080 (/healthz) — nothing but the gatekeeper's own
+    # publishing 3000 (Selkies) or 8090 (/healthz) — nothing but the gatekeeper's own
     # port should be reachable from the host, mirroring how Railway will only route
     # to one target port.
     ports: !override

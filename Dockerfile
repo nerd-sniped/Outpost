@@ -87,14 +87,30 @@ RUN chmod +x /defaults/autostart \
     ln -sf /opt/outpost/authcheck.sh /usr/local/bin/outpost-authcheck
 
 # Outpost defaults. Overridable per-deployment (.env / Railway template vars).
+# SELKIES_AUDIO_ENABLED / SELKIES_GAMEPAD_ENABLED / NO_GAMEPAD default off: FreeCAD has
+# no use for either, and disabling them measurably cut round-trip latency on the
+# Phase 4.1 live Railway test (all base-image env vars, documented in
+# linuxserver/docker-baseimage-selkies's README — not Outpost-specific plumbing).
+# NO_GAMEPAD matters, not just SELKIES_GAMEPAD_ENABLED: the base image's
+# init-selkies-config only skips creating the joystick device nodes/interposer when
+# NO_GAMEPAD is set — SELKIES_GAMEPAD_ENABLED alone left the gamepad subsystem running
+# regardless (confirmed live: "Initializing 4 persistent gamepad instances..." appeared
+# in the logs even with SELKIES_GAMEPAD_ENABLED=false). See docs/DECISIONS.md D10.
 ENV TITLE="Outpost" \
     GITPDM_PROVIDER="github" \
     GITPDM_HOST="github.com" \
     OUTPOST_REPO_ROOT="/config/repo" \
     OUTPOST_ADDONS_DIR="/opt/outpost/addons" \
     GITPDM_TOKEN_FILE="/run/outpost/token" \
-    RESTART_APP="true"
+    OUTPOST_HEALTHZ_PORT="8090" \
+    RESTART_APP="true" \
+    SELKIES_AUDIO_ENABLED="false" \
+    SELKIES_GAMEPAD_ENABLED="false" \
+    NO_GAMEPAD="true"
 
-# 3000 HTTP / 3001 HTTPS (Selkies, from base) · 8080 Outpost /healthz ·
-# 8081 gatekeeper (Phase 3, AUTH_MODE=gatekeeper only — idle otherwise)
-EXPOSE 3000 3001 8080 8081
+# 3000 HTTP / 3001 HTTPS (Selkies, from base) · 8090 Outpost /healthz ·
+# 8081 gatekeeper (Phase 3, AUTH_MODE=gatekeeper only — idle otherwise). 8090 (not
+# 8080) is deliberate — see docs/DECISIONS.md D9: Railway injected PORT=8080 on the
+# first live deploy, colliding with the old hardcoded healthz port and crash-looping
+# the gatekeeper.
+EXPOSE 3000 3001 8090 8081
