@@ -1,0 +1,10 @@
+#!/usr/bin/with-contenv bash
+# Supervised by linuxserver's s6 layer. Always registered, but a true no-op unless
+# AUTH_MODE=gatekeeper (Phase 3's door key) — binds nothing on rung 1, so the
+# Tailscale overlay's `tailscale serve -> 127.0.0.1:3000` path (DECISIONS.md D5) is
+# provably unaffected by this service merely existing. See DECISIONS.md D6 for why
+# this is runtime-gated rather than a build-time branch.
+if [ "${AUTH_MODE:-}" != "gatekeeper" ]; then
+  exec sleep infinity
+fi
+exec /opt/outpost/gatekeeper

@@ -48,7 +48,13 @@ for d in /config/.config /config/.cache /config/.local; do
 done
 [ -d "$REPO_ROOT" ] && chown -R "$OWNER" "$REPO_ROOT" 2>/dev/null || true
 
+# 4. tmpfs token dir for the gatekeeper handoff (Phase 3, GITPDM_TOKEN_FILE). Present
+#    on every rung — harmless no-op when AUTH_MODE != gatekeeper, since nothing ever
+#    writes here then. docker-compose.yml mounts /run/outpost as tmpfs.
+TOKEN_DIR="$(dirname "${GITPDM_TOKEN_FILE:-/run/outpost/token}")"
+mkdir -p "$TOKEN_DIR" && chown "$OWNER" "$TOKEN_DIR" && chmod 700 "$TOKEN_DIR"
+
 # Credential note: rung 1 passes GITPDM_TOKEN via env (documented .env contract);
-# GitPDM reads it directly. The tmpfs token-file handoff (GITPDM_TOKEN_FILE) is the
-# gatekeeper's job in Phase 3 — not wired here to avoid a half-measure.
+# GitPDM reads it directly. Rung 2 (gatekeeper) instead writes a token to
+# GITPDM_TOKEN_FILE at runtime, after device-flow auth completes.
 log "done"

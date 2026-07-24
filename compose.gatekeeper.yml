@@ -1,0 +1,37 @@
+# Outpost — Phase 3: exercise the gatekeeper locally, standing in for rung 2
+# (Railway, Phase 4, not built yet). The gatekeeper becomes the SOLE entrypoint —
+# Selkies and /healthz are deliberately not published, only its own port is — so
+# this proves the same "no unauthenticated path to Selkies" property Railway will
+# have, before Railway exists. Device flow hits real github.com endpoints; no
+# public callback URL is required for device flow, so this works fully offline of
+# any hosting platform.
+#
+#   cp .env.example .env   # set GITHUB_CLIENT_ID, ALLOWED_GITHUB_USER, SESSION_SECRET
+#   docker compose -f docker-compose.yml -f compose.gatekeeper.yml up -d --build
+#   open http://localhost:8081
+#
+# See docs/DECISIONS.md D6 for why the gatekeeper is an always-registered service
+# (AUTH_MODE-gated at runtime) rather than a second build, and docs/SECURITY.md for
+# the adversarial test checklist this overlay is meant to exercise.
+
+services:
+  outpost:
+    # `!override` (not `!reset` — that tag only clears a field to empty, verified;
+    # replacing with a *non-empty* list needs `!override`) replaces the base file's
+    # ports list outright instead of the default merge-append. Deliberately NOT
+    # publishing 3000 (Selkies) or 8080 (/healthz) — nothing but the gatekeeper's own
+    # port should be reachable from the host, mirroring how Railway will only route
+    # to one target port.
+    ports: !override
+      - "127.0.0.1:${PORT:-8081}:${PORT:-8081}"
+    environment:
+      AUTH_MODE: "gatekeeper"
+      GITHUB_CLIENT_ID: "${GITHUB_CLIENT_ID}"
+      ALLOWED_GITHUB_USER: "${ALLOWED_GITHUB_USER}"
+      SESSION_SECRET: "${SESSION_SECRET}"
+      PORT: "${PORT:-8081}"
+      # Rung 2 (Railway) will never have a leftover rung-1 GITPDM_TOKEN sitting in
+      # its env — only what the gatekeeper writes to GITPDM_TOKEN_FILE at runtime.
+      # Blank it here too, so a .env recycled from rung-1 testing doesn't silently
+      # mask a real token-handoff bug behind an unrelated leftover credential.
+      GITPDM_TOKEN: ""

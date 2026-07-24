@@ -17,6 +17,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Gatekeeper compile check (cheapest canary, runs before the image build)
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+      - run: cd gatekeeper && go vet ./... && go build -o /dev/null .
+
       - name: Build image
         run: docker build -t outpost:ci .
 
@@ -40,6 +46,29 @@ jobs:
           echo "$out"
           echo "$out" | grep -q "FAILED" || { echo "probe did not report FAILED cleanly"; exit 1; }
 
+      - name: Gatekeeper smoke test (no real GitHub account needed)
+        run: |
+          docker run -d --name gk --shm-size=1gb \
+            -e AUTH_MODE=gatekeeper -e PORT=8081 \
+            -e GITHUB_CLIENT_ID=dummy -e ALLOWED_GITHUB_USER=nobody \
+            -e SESSION_SECRET="$(openssl rand -hex 32)" \
+            -p 8081:8081 outpost:ci
+          for i in $(seq 1 24); do
+            if curl -fsS http://localhost:8081/healthz >/dev/null; then ok=1; break; fi
+            sleep 5
+          done
+          [ "${ok:-0}" = 1 ] || { echo "gatekeeper never came up"; docker logs gk; exit 1; }
+          # No cookie -> the code-prompt page, on ANY path, never Selkies content.
+          body=$(curl -fsS http://localhost:8081/some/random/looking/path)
+          echo "$body" | grep -q "outpost-gatekeeper" || { echo "did not get the code-prompt page"; docker logs gk; exit 1; }
+          # Selkies is not published at all when only the gatekeeper port is exposed.
+          if curl -fsS --max-time 2 http://localhost:3000 >/dev/null 2>&1; then
+            echo "Selkies reachable without going through the gatekeeper!"; exit 1
+          fi
+          # The dummy client id/secret must never appear in the container's logs.
+          docker logs gk 2>&1 | grep -q "dummy" && { echo "dummy client id leaked into logs"; exit 1; } || true
+          docker rm -f gk
+
       # Optional: closes Phase 0.2 when a scoped throwaway PAT secret is configured.
       - name: Live auth smoke (0.2) — only if a PAT secret is present
         if: ${{ secrets.GITPDM_TEST_PAT != '' }}
@@ -53,4 +82,4 @@ jobs:
 
       - name: Teardown
         if: always()
-        run: docker rm -f outpost || true
+        run: docker rm -f outpost gk || true

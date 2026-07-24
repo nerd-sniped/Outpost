@@ -26,6 +26,9 @@ services:
     ports:
       - "127.0.0.1:3000:3000"   # Selkies HTTP (browser)
       - "127.0.0.1:8080:8080"   # Outpost /healthz
+    tmpfs:
+      - /run/outpost   # Phase 3: gatekeeper's token handoff (GITPDM_TOKEN_FILE).
+                       # Unused/harmless when AUTH_MODE != gatekeeper.
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:8080/healthz"]
       interval: 30s

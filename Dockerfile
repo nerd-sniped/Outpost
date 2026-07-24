@@ -7,7 +7,18 @@
 # RESTART_APP crash-relaunch) and layer in a *pinned* FreeCAD AppImage so the image
 # only ever ships a FreeCAD we control. See docs/DECISIONS.md (D1–D3).
 
+# ARGs used in a FROM must be declared before the *first* FROM to stay visible to
+# every stage — redeclaring after a stage starts scopes them to that stage only.
+ARG GO_VERSION=1.23
 ARG SELKIES_BASE=lscr.io/linuxserver/baseimage-selkies:ubuntunoble
+
+# --- Gatekeeper (Phase 3) builder: compiles to a static binary; only the binary
+#     (not the Go toolchain) crosses into the final image below. ---
+FROM golang:${GO_VERSION}-alpine AS gatekeeper-build
+WORKDIR /src
+COPY gatekeeper/ .
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/gatekeeper .
+
 FROM ${SELKIES_BASE}
 
 # --- Pins (all four are the knobs you bump; keep them in sync with docs/) ---
@@ -60,12 +71,19 @@ RUN mkdir -p /opt/outpost/addons && \
 # Overlay: /defaults/autostart, /custom-cont-init.d/*, /custom-services.d/*, /opt/outpost/*
 COPY root/ /
 
+# Phase 3: the gatekeeper's static binary (see builder stage above). Lives in
+# /opt/outpost alongside the other Outpost-owned binaries, not under root/ — it's
+# build-time output, not overlay content copied as-is.
+COPY --from=gatekeeper-build /out/gatekeeper /opt/outpost/gatekeeper
+
 # Restore exec bits (lost when authored on Windows) and put the auth probe on PATH.
 RUN chmod +x /defaults/autostart \
              /custom-cont-init.d/10-outpost-init.sh \
              /custom-services.d/healthz \
+             /custom-services.d/gatekeeper \
              /opt/outpost/authcheck.sh \
-             /opt/outpost/healthz.py && \
+             /opt/outpost/healthz.py \
+             /opt/outpost/gatekeeper && \
     ln -sf /opt/outpost/authcheck.sh /usr/local/bin/outpost-authcheck
 
 # Outpost defaults. Overridable per-deployment (.env / Railway template vars).
@@ -74,7 +92,9 @@ ENV TITLE="Outpost" \
     GITPDM_HOST="github.com" \
     OUTPOST_REPO_ROOT="/config/repo" \
     OUTPOST_ADDONS_DIR="/opt/outpost/addons" \
+    GITPDM_TOKEN_FILE="/run/outpost/token" \
     RESTART_APP="true"
 
-# 3000 HTTP / 3001 HTTPS (Selkies, from base) · 8080 Outpost /healthz
-EXPOSE 3000 3001 8080
+# 3000 HTTP / 3001 HTTPS (Selkies, from base) · 8080 Outpost /healthz ·
+# 8081 gatekeeper (Phase 3, AUTH_MODE=gatekeeper only — idle otherwise)
+EXPOSE 3000 3001 8080 8081
