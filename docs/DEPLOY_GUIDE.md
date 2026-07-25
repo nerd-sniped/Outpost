@@ -1,14 +1,219 @@
 # Deploying Outpost — a guide for non-technical users
 
-This guide assumes you've never used Docker, Git, or a cloud hosting dashboard
-before. It walks through getting your own private FreeCAD workspace running in a
-browser tab, step by step, in plain language. If you get stuck, the troubleshooting
-section at the bottom covers the most common surprises.
+Welcome! This guide assumes you've never used Docker, Git, or a cloud hosting
+dashboard before — that's fine, you don't need to. It walks through getting your
+own private FreeCAD workspace running in a browser tab, step by step, in plain
+language. Take your time; nothing here is a one-shot deal, and every step below
+is easy to undo if you get something wrong.
 
-You'll end up with a private web address that only you can open, with a full CAD
-program running inside it — nothing to install on your own computer.
+There are **two ways to run Outpost** — pick one:
 
-## What you need first
+- **Tutorial 1: Your own computer (Tailscale)** — free forever, but only reachable
+  from devices you personally approve, and only while that computer is on.
+- **Tutorial 2: Railway (cloud hosting)** — costs roughly $10–20/month, but it's
+  always on and reachable from any device with a sign-in screen, without you
+  needing to own or run any hardware.
+
+Read "What is Outpost, in plain English?" first either way — it explains the
+moving parts so the steps below make sense instead of feeling like magic.
+
+---
+
+## What is Outpost, in plain English?
+
+Think of Outpost as a CAD program (FreeCAD) running on a computer that isn't
+yours, with a live video feed of its screen streamed into your browser tab —
+similar to how Chrome Remote Desktop or Parsec let you watch and control a
+faraway computer. You're not installing FreeCAD; you're watching and clicking on
+a video of it that reacts instantly.
+
+The twist: your actual design files never live only on that faraway computer.
+Every time you save, your work gets pushed to a GitHub repository you own. That
+means the computer running FreeCAD is *disposable* — it can crash, restart, or
+get deleted, and at most you lose the last minute of unsaved work, because
+everything else is already safely sitting in your GitHub account.
+
+That's the whole idea: **a CAD workstation you can throw away, because your work
+was never really stored on it.**
+
+If you've used something like Onshape before, the closest comparison is: same
+"CAD lives in the cloud, reach it from anywhere" convenience — except everything
+here is free and open-source, your files live in a git repo you actually own
+instead of a vendor's database, and there's no subscription tying your designs
+to a company's continued existence.
+
+## The moving parts (tech stack, in plain English)
+
+You don't need to understand any of this to follow the tutorials — it's here so
+you can explain the shape of the thing to someone else without hand-waving.
+
+| Piece | Plain-English job |
+|---|---|
+| **FreeCAD** | The actual CAD software. Same program you'd install locally — it just happens to be running somewhere else. |
+| **Docker** | A shipping container for software. It packages FreeCAD and everything it needs so it runs identically on your laptop, a friend's PC, or Railway's servers. |
+| **Selkies** | The "video call" layer. It captures FreeCAD's screen and streams it to your browser, and sends your clicks/keystrokes back — this is what makes "FreeCAD in a browser tab" possible. |
+| **GitPDM** | The auto-save/backup layer. Wires FreeCAD up to git (GitHub's version-control system) so Save/Commit/Push inside the app pushes your files to your own GitHub repo. |
+| **The front door** | Whatever decides *who's allowed in*. Tutorial 1 uses **Tailscale** (only your own devices, via a private network). Tutorial 2 uses the **gatekeeper** (anyone can reach the URL, but only your GitHub account can sign in). |
+
+## The basic workflow (same shape, either path)
+
+Once it's running, using Outpost looks the same no matter which tutorial you
+followed:
+
+1. **Open a URL in your browser.** No install, no download.
+2. **Prove it's you.** Either you're on the private network (Tailscale), or you
+   sign in with GitHub (Railway).
+3. **FreeCAD loads**, streamed live, like a video that responds to your clicks.
+4. **You design.** Draw, model, orbit the 3D view — normal FreeCAD.
+5. **Save → Commit → Push** from the GitPDM panel inside the app. This is the
+   step that actually backs your work up to GitHub — get in the habit of doing
+   it often.
+6. **Close the tab whenever.** If the server ever restarts unexpectedly, it
+   auto-backs-up any unsaved work first, so a dropped connection isn't scary —
+   but pushing yourself is still the real safety net.
+
+## Which path should I use?
+
+| | Tutorial 1: Tailscale (own hardware) | Tutorial 2: Railway (cloud) |
+|---|---|---|
+| **Cost** | Free (electricity aside) | ~$10–20/month |
+| **Reachable from** | Only devices you've added to your private Tailscale network | Any device, anywhere — sign-in screen decides access |
+| **Needs to stay on** | Yes — it's your computer; if it's off, Outpost is off | No — Railway's servers run it |
+| **Setup difficulty** | A bit more involved (install Docker, edit a config file) | Easier (click a button, fill in one field) |
+| **Good for** | Technical-ish users, or anyone with a spare always-on PC | Anyone who wants "click and go" with zero hardware |
+
+---
+
+## Tutorial 1: Run it on your own computer (Tailscale)
+
+This gets Outpost running on a computer you own, reachable from your phone or
+any other device — but only devices you've personally signed into the same
+private Tailscale network. There's no public login screen here; **the private
+network itself is what keeps strangers out**, so don't skip the "keep this
+private" note in Step 6.
+
+### What you need first
+
+- **A computer that can stay on** while you're using Outpost — a desktop, an old
+  laptop, a NUC, a home server. It doesn't need a fancy graphics card.
+- **[Docker Desktop](https://www.docker.com/products/docker-desktop/)** installed
+  and running on that computer (Windows/Mac). On Linux, install
+  [Docker Engine](https://docs.docker.com/engine/install/) instead. Docker is
+  the "shipping container" software mentioned above — Outpost runs inside it.
+- **A free [Tailscale](https://tailscale.com) account.** Tailscale creates a
+  private network ("tailnet") that only your devices can join.
+- **A [GitHub account](https://github.com/signup)**, same as Tutorial 2 — this
+  is where your design files get saved.
+
+### Step 1 — Get the Outpost files onto your computer
+
+Go to the [Outpost repository](https://github.com/nerd-sniped/Outpost), click
+the green **"Code"** button, then **"Download ZIP."** Extract it somewhere you'll
+remember, like your Desktop.
+
+(If you're comfortable with git, `git clone` works too — same result.)
+
+### Step 2 — Create a GitHub token
+
+Outpost needs permission to save files to your GitHub account on your behalf.
+
+1. Go to [github.com/settings/tokens](https://github.com/settings/tokens) →
+   **Generate new token** → **Generate new token (classic)**.
+2. Give it any name (e.g. "Outpost"), check the **`repo`** scope box, and click
+   **Generate token** at the bottom.
+3. **Copy the token immediately** — GitHub only shows it once. It'll look like
+   `ghp_xxxxxxxxxxxxxxxxxxxx`.
+
+### Step 3 — Fill in your configuration file
+
+Inside the folder from Step 1, find `.env.example`. Make a copy of it in the
+same folder and rename the copy to `.env` (just `.env`, nothing before the dot).
+Open it in Notepad (Windows) or TextEdit (Mac) and fill in two lines:
+
+- `GITPDM_TOKEN=` — paste the token from Step 2 right after the `=`.
+- `TS_AUTHKEY=` — leave this **blank**. You'll get a one-time login link in
+  Step 5 instead, which is simpler for a first run.
+
+Everything else can stay as-is. Save the file.
+
+### Step 4 — Start Outpost
+
+Open a terminal in that folder (Windows: right-click inside the folder →
+"Open in Terminal" or "Open PowerShell window here"; Mac: right-click the
+folder → Services → "New Terminal at Folder"), and run:
+
+```
+docker compose -f docker-compose.yml -f compose.tailscale.yml up -d --build
+```
+
+The first run takes a few minutes — Docker is downloading and building the full
+FreeCAD environment. Scrolling text is normal, not an error.
+
+### Step 5 — Connect Outpost to your Tailscale network
+
+Run:
+
+```
+docker compose logs -f tailscale
+```
+
+You'll see a one-time login URL (starts with `https://login.tailscale.com/...`).
+Open it in your browser and sign in — this links the Outpost container to your
+tailnet. You only need to do this once; press `Ctrl+C` to stop watching the logs
+once you've signed in.
+
+### Step 6 — Add your other devices to the tailnet
+
+On your phone (or any other device you want to use Outpost from), install the
+[Tailscale app](https://tailscale.com/download) and sign in with the **same
+account** you used in Step 5. That device is now part of your private network.
+
+**Keep this list small and trusted** — anyone on your tailnet can open Outpost
+and get a full FreeCAD Python console with no further login. There's no
+gatekeeper on this path; the network membership *is* the security boundary.
+
+### Step 7 — Open Outpost
+
+From any device on your tailnet, browse to:
+
+```
+https://freecad.<your-tailnet-name>.ts.net
+```
+
+Your tailnet name is visible in the [Tailscale admin console](https://login.tailscale.com/admin/machines)
+next to the `freecad` machine, or in the URL Tailscale showed you after sign-in.
+FreeCAD should load in a few seconds. If you set a `GIT_REMOTE_URL` in Step 3
+(optional — not covered above), your repo is already cloned; otherwise use
+GitPDM's panel inside the app to clone or create one.
+
+### Tutorial 1 troubleshooting
+
+Hit a snag? These cover just about everything that trips people up on this path:
+
+- **`docker compose` command not found.** Docker Desktop isn't running, or isn't
+  installed. Open Docker Desktop and wait for it to say "Running," then retry.
+- **No login URL appeared in the logs.** Give it a few seconds and re-run the
+  `docker compose logs -f tailscale` command from Step 5 — it only prints once,
+  early in startup.
+- **`https://freecad.<tailnet>.ts.net` doesn't load on my phone.** Confirm the
+  Tailscale app is installed *and signed in* on that phone (open the app, check
+  it says "Connected"), and that it's the same Tailscale account as Step 5.
+- **I closed the terminal — did Outpost stop?** No. `up -d` runs it in the
+  background permanently (until you restart the computer or run
+  `docker compose down`). Closing the terminal window is fine.
+- **I want to stop it.** Run `docker compose -f docker-compose.yml -f compose.tailscale.yml down`
+  in the same folder.
+
+---
+
+## Tutorial 2: Deploy to the cloud (Railway)
+
+This gets you a private web address that only you can open, with a full CAD
+program running inside it — nothing to install on your own computer, and no
+hardware of your own to keep running. Unlike Tutorial 1, there's a public login
+screen (the gatekeeper) doing the work Tailscale's private network did above.
+
+### What you need first
 
 - **A GitHub account.** This is where your design files get saved, and it's also
   how you'll prove it's *you* signing in. If you don't have one, create one free at
@@ -19,16 +224,23 @@ program running inside it — nothing to install on your own computer.
   [railway.com](https://railway.com), click "Login," and choose "Login with GitHub."
   Railway will ask you to add a payment method before you can deploy anything —
   this is normal for hosting services and is covered in "About cost" below.
+- **The Hobby plan, not just the free trial.** New Railway accounts start on a
+  free trial that caps you at 1 GB of RAM — not enough for Outpost (FreeCAD plus
+  the streaming/display stack needs more than that, and on a trial account the
+  deployment will crash-loop shortly after starting). Upgrade to the $5/month
+  Hobby plan before deploying: in the Railway dashboard, go to your account or
+  workspace settings and look for "Upgrade" / "Billing." This only takes a minute
+  and is a one-time setup step, not something you repeat per deploy.
 
 That's it. You do not need to install anything on your own computer.
 
-## Step 1 — Click the deploy button
+### Step 1 — Click the deploy button
 
 From [the Outpost repository page](https://github.com/nerd-sniped/Outpost), click
 the **"Deploy on Railway"** button near the top of the README. This opens Railway
 and starts setting up your own private copy of Outpost.
 
-## Step 2 — Fill in one field: your GitHub username
+### Step 2 — Fill in one field: your GitHub username
 
 Railway will show a short setup form. There's only one thing you *must* fill in:
 
@@ -40,7 +252,7 @@ Railway will show a short setup form. There's only one thing you *must* fill in:
 Everything else on the form already has a working default — you can leave it as
 is. Click **Deploy**.
 
-## Step 3 — Wait for the first build (get a coffee)
+### Step 3 — Wait for the first build (get a coffee)
 
 The first deploy takes about **5 minutes**. Railway is downloading and setting up
 a full copy of FreeCAD in the background — this is normal and only happens once.
@@ -51,7 +263,7 @@ When it says your deployment is live, open **Settings → Networking** on your
 service and make sure a public domain is generated (a `something.up.railway.app`
 address). Click it, or copy it into your browser.
 
-## Step 4 — Sign in
+### Step 4 — Sign in
 
 Your new Outpost address will show a short numeric/letter code and a link to
 `github.com/login/device`. Click that link (opens in a new tab), and when it asks
@@ -64,7 +276,7 @@ Switch back to the Outpost tab — it should now load into a full desktop applic
 you typed into `ALLOWED_GITHUB_USER` in Step 2. Reload the page and sign in with
 the matching account instead.
 
-## Step 5 — Using it
+### Step 5 — Using it
 
 You're now looking at a real CAD program, just streamed to you instead of
 installed. A few things work differently from a normal website:
@@ -81,7 +293,7 @@ installed. A few things work differently from a normal website:
   first — so a dropped connection is a lot less scary than it sounds. Still, save
   and push often, the same way you'd save a document you care about.
 
-## About cost
+### About cost
 
 Railway bills for the time your workspace is running, plus a small amount for data
 transferred while you're using it. As of this writing that's estimated in the
@@ -102,7 +314,9 @@ This is optional and skippable for a first deploy; the guide above works without
 it, just note you may want to manually stop the deployment from Railway's dashboard
 when you're not using it for a while.
 
-## Troubleshooting
+### Tutorial 2 troubleshooting
+
+Hit a snag? These cover just about everything that trips people up on this path:
 
 - **Stuck on "Building" for more than ~10 minutes.** Click into the deployment's
   logs in Railway's dashboard — if it's still scrolling text, it's still working.
@@ -113,6 +327,12 @@ when you're not using it for a while.
   that you're using the exact `.up.railway.app` address from Settings → Networking.
 - **"Access denied" after signing in with GitHub.** You signed in as the wrong
   account — see Step 4.
+- **The page is stuck on "Starting…" and never shows a sign-in code, even after
+  waiting several minutes.** This usually means you're still on Railway's free
+  trial rather than the Hobby plan — the trial's 1 GB RAM limit isn't enough for
+  Outpost, so the app repeatedly crashes and restarts in the background (you
+  won't see an error, just the same "Starting…" screen looping). Upgrade to the
+  Hobby plan in Railway's dashboard (Billing → Upgrade), then redeploy.
 - **You lost a device you were signed into.** See `SECURITY.md` in the repository
   for the two-step "panic procedure" (rotate your session secret, revoke the
   GitHub authorization). It takes about a minute and immediately locks out any

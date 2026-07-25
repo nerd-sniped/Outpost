@@ -1,5 +1,18 @@
 # Outpost
 
+**A full CAD program, running in your browser, that auto-saves to your own
+GitHub.** Sign in, design, close the tab — nothing to install, nothing lost.
+
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/outpost-1?referralCode=D4kUtS&utm_medium=integration&utm_source=template&utm_campaign=generic)
+
+New here? Click the button above and you'll have your own private FreeCAD
+workspace in about 5 minutes. Prefer to run it on your own computer for free
+instead? Both paths — plus everything in between — are covered step by step,
+no jargon, no assumed experience, in **[`docs/DEPLOY_GUIDE.md`](docs/DEPLOY_GUIDE.md)**.
+Start there if any of the words below are unfamiliar — that's exactly what it's for.
+
+---
+
 **A browser-based workstation for FreeCAD — identity-gated, git-native, killable
 everywhere.** Auth, versioning, and durability are one system: deploy it anywhere,
 kill the server or the client, and lose at most a minute of work. Durable state lives
@@ -8,40 +21,46 @@ disposable by design.
 
 > Not "FreeCAD in a browser" — that's a commodity ([linuxserver/freecad] already does
 > it). Outpost is the *workflow*: one auth that is also your git credential, automatic
-> checkpointing to a recovery branch, and a stateless box you can throw away.
+> checkpointing to a recovery branch, and a stateless box you can throw away. Call it
+> the free, open-source answer to Onshape: real version control instead of a
+> proprietary vault, and a workstation you host, own, and can walk away from any time.
 
 [linuxserver/freecad]: https://github.com/linuxserver/docker-freecad
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/REPLACE_ME_WITH_TEMPLATE_ID)
-
-**New to this / not a developer?** Skip straight to
-[`docs/DEPLOY_GUIDE.md`](docs/DEPLOY_GUIDE.md) — a plain-language, no-jargon
-walkthrough from "I have a GitHub account" to "I'm using FreeCAD in my browser."
-Everything below this point is the engineering-level README.
+**Everything below this point is the engineering-level README** — architecture,
+config reference, and internals for contributors and self-hosters who want the
+full picture.
 
 ---
 
 ## Status
 
-**Phase 4 exit gate met — Railway deploy is live and running continuously.** Manual
-CLI deploy to Railway (`railway.json` + `docs/PHASE4_DEPLOY.md`) works end-to-end on
-a real public URL: gatekeeper sign-in, device-flow login, GitPDM clone/edit/commit/push
-all verified working. Railway's own sleep/wake never reliably triggers
-(`docs/DECISIONS.md` D11) — rather than chase that further or add a
-latency-costing workaround, Outpost just runs continuously, with an owner-only
-manual shutdown control as an escape hatch (D12). Four real, live-test-only findings
-fixed along the way (D9–D12). Phase 6 (cost validation over real use, a touch pass,
-and a stranger-deploys-from-the-listing test) is next — each needs calendar time or
-other people, not another deploy session. Rung 1 (Phase 2) is done and tagged:
-FreeCAD in a browser, reachable from a phone on cellular over Tailscale with zero open
-ports, confirmed on a second machine (see `docs/PHASE2_VERIFICATION.md`). The gatekeeper
-door-key — device-flow login, identity-pinned session, token handoff to GitPDM — passed
-its full adversarial test pass against a real GitHub OAuth App and two real accounts
+**Short version: rung 1 (self-host) has been solid for a while, and rung 2 (Railway)
+is now live and running continuously too.** The longer version, for anyone who wants
+the receipts:
+
+Railway deploy works end-to-end on a real public URL — gatekeeper sign-in, device-flow
+login, and GitPDM clone/edit/commit/push all verified working
+(`railway.json` + `docs/PHASE4_DEPLOY.md`). Railway's own sleep/wake never reliably
+triggers (`docs/DECISIONS.md` D11); rather than chase that further or eat a
+latency-costing workaround, Outpost just runs continuously, with an owner-only manual
+shutdown control as the escape hatch (D12). Four real findings turned up along the way
+and got fixed (D9–D12) — that's what live testing against a real account is for. Next
+up is Phase 6: cost validation over real use, a touch-input pass, and a
+stranger-deploys-from-the-listing test — each of those needs calendar time or other
+people, not another coding session.
+
+Rung 1 (self-host) has been done and tagged for a while: FreeCAD in a browser,
+reachable from a phone on cellular over Tailscale with zero open ports, confirmed on a
+second machine (see `docs/PHASE2_VERIFICATION.md`). The gatekeeper door-key —
+device-flow login, identity-pinned session, token handoff to GitPDM — passed a full
+adversarial test pass against a real GitHub OAuth App and two real accounts
 (see `docs/PHASE3_VERIFICATION.md`): wrong-account rejection, tampered/expired cookies,
 restart/recreate token self-heal, `SESSION_SECRET` rotation, and the two-step panic
 procedure all confirmed working.
-See `docs/OUTPOST_DEV_PLAN.md` for the full phase plan and `docs/DECISIONS.md` for the
-choices behind this build.
+
+Curious about the reasoning, not just the result? `docs/OUTPOST_DEV_PLAN.md` has the
+full phase plan, and `docs/DECISIONS.md` walks through the choices behind this build.
 
 What works today:
 
@@ -59,7 +78,7 @@ Not yet measured: the **llvmpipe benchmark** (Phase 1.5) — see `scripts/benchm
 
 ## Quick start (rung 1, localhost)
 
-Requires Docker.
+The fastest way to see it running. Requires Docker.
 
 ```bash
 cp .env.example .env      # set GITPDM_TOKEN + optionally GIT_REMOTE_URL
@@ -79,9 +98,9 @@ docker exec outpost outpost-authcheck
 
 ## Reach it from anywhere over Tailscale (rung 1, no open ports)
 
-The Tailscale sidecar makes the session reachable from your phone or any tailnet
-device as an HTTPS URL — with **zero ports published on the host** and no gatekeeper.
-Add the overlay to the same command:
+Want it on your phone too? The Tailscale sidecar makes the session reachable from your
+phone or any tailnet device as an HTTPS URL — with **zero ports published on the host**
+and no gatekeeper. Add the overlay to the same command:
 
 ```bash
 # set GITPDM_TOKEN + TS_AUTHKEY in .env (or leave TS_AUTHKEY blank for interactive login)
@@ -102,10 +121,11 @@ Config lives in `compose.tailscale.yml` + `tailscale/serve.json`; rationale in
 
 ## Reach it from the public internet (rung 2, gatekeeper)
 
-The gatekeeper is a small Go shim in front of Selkies: GitHub device-flow login,
-identity-pinned to one account, and a proxy that only lets an authenticated session
-through. It's what makes a public URL (Railway, Phase 4) safe — but it also runs fine
-standalone, as a local stand-in for that, right now:
+Ready to give it a real public URL instead of a tailnet-only one? The gatekeeper is a
+small Go shim in front of Selkies: GitHub device-flow login, identity-pinned to one
+account, and a proxy that only lets an authenticated session through. It's what makes
+a public URL (Railway, Phase 4) safe — but it also runs fine standalone, as a local
+stand-in for that, right now:
 
 ```bash
 # GitHub OAuth App (device flow enabled, no client secret needed):
@@ -127,9 +147,11 @@ follow the panic procedure in `SECURITY.md` immediately.
 
 ## How auth works (read before exposing this to a network)
 
-Outpost requests `repo` scope because **the same token is the door key and the git
+Worth two minutes before you point this at anything but your own tailnet. Outpost
+requests `repo` scope because **the same token is the door key and the git
 credential**. A valid session includes FreeCAD's Python console — i.e. arbitrary code
-execution as the container user, including reading that token. Consequences:
+execution as the container user, including reading that token. What that means in
+practice:
 
 - On `localhost`/Tailscale (rung 1) the network *is* the auth boundary — do not publish
   port 3000 to the internet without the gatekeeper.
@@ -145,7 +167,7 @@ execution as the container user, including reading that token. Consequences:
 
 ## Configuration
 
-All via `.env` (see `.env.example`). The load-bearing values: `GITPDM_PROVIDER`,
+Nothing hidden — all via `.env` (see `.env.example`). The load-bearing values: `GITPDM_PROVIDER`,
 `GITPDM_TOKEN`, `GIT_REMOTE_URL`, `PUID`/`PGID` for rung 1; `GITHUB_CLIENT_ID`,
 `ALLOWED_GITHUB_USER`, `SESSION_SECRET` for the gatekeeper (rung 2 / local rung-2-style
 testing). Provider support day one is **GitHub** or **generic** (any git remote via
@@ -153,6 +175,8 @@ PAT-in-URL / ambient SSH) on rung 1 — the gatekeeper's device flow is GitHub-o
 design; other named hosts are on the roadmap.
 
 ## Pins
+
+Every version below is pinned deliberately, not just whatever was latest on build day.
 
 | Component        | Pin      | Notes                                            |
 |------------------|----------|--------------------------------------------------|

@@ -1,19 +1,24 @@
 # Security
 
+Straight talk, no scare tactics: here's exactly what Outpost's auth can and can't
+protect you from, and what to do if a device you were signed in on goes missing.
+
 Outpost's door key (the Phase 3 gatekeeper) requests `repo` scope because the same
 GitHub token is both the login and the git credential — see `README.md`'s "How auth
-works" section for the full rationale. This file is the re-runnable adversarial checklist
-(re-run manually before any release that touches the gatekeeper, per
-`docs/OUTPOST_DEV_PLAN.md`'s "Test infrastructure" section) and the panic procedure.
+works" section for the full rationale. This file doubles as the re-runnable adversarial
+checklist (re-run manually before any release that touches the gatekeeper, per
+`docs/OUTPOST_DEV_PLAN.md`'s "Test infrastructure" section) and the panic procedure
+below.
 
 ## Threat model, stated plainly
 
 A valid gatekeeper session includes FreeCAD's Python console — i.e. arbitrary code
 execution as the container user, including reading the token file. **A stolen, logged-in
-device is a total compromise of the repo(s) and the box.** Nothing in this design tries
+device is a total compromise of the repo(s) and the box.** We're not going to pretend
+otherwise or paper over it with a false sense of security. Nothing in this design tries
 to reduce that blast radius further; the mitigations below are about (1) keeping
-strangers from ever getting a valid session, and (2) capping how long a stolen session
-stays valid.
+strangers from ever getting a valid session in the first place, and (2) capping how long
+a stolen session stays valid if the worst happens.
 
 ## Adversarial checklist (re-run before any gatekeeper-touching release)
 
@@ -30,7 +35,8 @@ form:
 
 ## Panic procedure (device stolen while logged in)
 
-Two steps, both required — they close different holes:
+Take a breath — this is recoverable, and it takes about a minute. Two steps, both
+required — they close different holes:
 
 1. **Rotate `SESSION_SECRET`.** Locally: edit `.env`, `docker compose up -d`. Railway
    (Phase 4): regenerate the template variable and redeploy. This alone invalidates
