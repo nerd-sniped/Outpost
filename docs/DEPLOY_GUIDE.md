@@ -315,12 +315,8 @@ Two things worth doing on Railway's dashboard early on:
 - If Railway offers a spending limit or budget alert in your account settings,
   turn it on — it's the easiest way to avoid a surprise.
 
-There's also a shutdown button (a small power icon in the corner of the FreeCAD
-window) if you set the optional `RAILWAY_API_TOKEN` variable — it stops the server
-completely when you're done, so nothing runs (or bills) while you're not using it.
-This is optional and skippable for a first deploy; the guide above works without
-it, just note you may want to manually stop the deployment from Railway's dashboard
-when you're not using it for a while.
+You may want to manually stop the deployment from Railway's dashboard when you're
+not using it for a while, so nothing runs (or bills) while you're away.
 
 ### Tutorial 2 troubleshooting
 
@@ -427,6 +423,16 @@ requests `repo` scope because **the same token is the door key and the git
 credential**. A valid session includes FreeCAD's Python console — i.e. arbitrary code
 execution as the container user, including reading that token. What that means in
 practice:
+
+**Is Railway actually more secure than self-hosting?** Not exactly — it moves the
+blast radius rather than shrinking it. Both paths share the same worst case above: a
+compromised session is a full compromise of the box and the repo, either way. Railway
+isolates that blast radius *from you* — if the container gets popped, the attacker
+lands in a disposable cloud sandbox with no path to your other devices or home
+network. Tailscale-only self-hosting trades that for a smaller attack surface in the
+first place: nothing is reachable from the public internet at all, so there's nothing
+for a stranger to even attempt against. Neither is strictly safer; they just fail
+differently.
 
 - On `localhost`/Tailscale (rung 1) the network *is* the auth boundary — do not publish
   port 3000 to the internet without the gatekeeper.

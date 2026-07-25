@@ -7,7 +7,7 @@
 1. **A GitHub account** — to save your CAD files. [github.com/login](https://github.com/login)
 2. **A PAID Railway account** — to host FreeCAD. [railway.com](https://railway.com)
 
-> **Don't use the free Railway plan.** It doesn't have enough RAM to run the FreeCAD server. It won't throw an error — it'll just silently crash and quietly close, so it looks like nothing happened at all. ASK me how I know....
+> **The free Railway plan WILL NOT WORK.** It doesn't have enough RAM to run the FreeCAD server. It won't throw an error — it'll just silently crash and quietly close, so it looks like nothing happened at all. ASK me how I know....
 
 <p align="center">
   <a href="https://railway.com/deploy/outpost-1?referralCode=D4kUtS&utm_medium=integration&utm_source=template&utm_campaign=generic">
