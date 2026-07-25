@@ -1,4 +1,4 @@
-# Outpost
+# <img src="Artwork/Outpost.svg" width="40" height="40" valign="middle" alt="Outpost logo"/> Outpost
 
 **Outpost is a FreeCAD Deployment that runs in the browser.** Sign in & design.
 
