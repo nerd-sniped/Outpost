@@ -17,6 +17,14 @@ There are **two ways to run Outpost** — pick one:
 Read "What is Outpost, in plain English?" first either way — it explains the
 moving parts so the steps below make sense instead of feeling like magic.
 
+<p align="center">
+  <a href="#what-is-outpost-in-plain-english"><img src="https://img.shields.io/badge/-What%20is%20Outpost%3F-4c6ef5?style=for-the-badge" alt="Jump to: What is Outpost?"></a>
+  <a href="#which-path-should-i-use"><img src="https://img.shields.io/badge/-Which%20Path%20Should%20I%20Use%3F-4c6ef5?style=for-the-badge" alt="Jump to: Which path should I use?"></a>
+  <a href="#tutorial-1-run-it-on-your-own-computer-tailscale"><img src="https://img.shields.io/badge/-Tutorial%201%3A%20Own%20Computer-2f9e44?style=for-the-badge" alt="Jump to: Tutorial 1, own computer"></a>
+  <a href="#tutorial-2-deploy-to-the-cloud-railway"><img src="https://img.shields.io/badge/-Tutorial%202%3A%20Cloud%20(Railway)-2f9e44?style=for-the-badge" alt="Jump to: Tutorial 2, Railway"></a>
+  <a href="#technical-reference-for-docker-comfortable-users"><img src="https://img.shields.io/badge/-Technical%20Reference-868e96?style=for-the-badge" alt="Jump to: Technical reference"></a>
+</p>
+
 ---
 
 ## What is Outpost, in plain English?
@@ -92,7 +100,7 @@ private Tailscale network. There's no public login screen here; **the private
 network itself is what keeps strangers out**, so don't skip the "keep this
 private" note in Step 6.
 
-### What you need first
+### What you need first (Tailscale)
 
 - **A computer that can stay on** while you're using Outpost — a desktop, an old
   laptop, a NUC, a home server. It doesn't need a fancy graphics card.
@@ -213,7 +221,7 @@ program running inside it — nothing to install on your own computer, and no
 hardware of your own to keep running. Unlike Tutorial 1, there's a public login
 screen (the gatekeeper) doing the work Tailscale's private network did above.
 
-### What you need first
+### What you need first (Railway)
 
 - **A GitHub account.** This is where your design files get saved, and it's also
   how you'll prove it's *you* signing in. If you don't have one, create one free at
@@ -298,8 +306,8 @@ installed. A few things work differently from a normal website:
 Railway bills for the time your workspace is running, plus a small amount for data
 transferred while you're using it. As of this writing that's estimated in the
 **$10–20/month range for regular personal use**, but that estimate is still being
-verified against real usage (see the project's `docs/OUTPOST_DEV_PLAN.md`, Phase
-6.1) — treat it as a rough starting expectation, not a guarantee.
+verified against real-world usage — treat it as a rough starting expectation, not a
+guarantee.
 
 Two things worth doing on Railway's dashboard early on:
 - Check **Usage/Billing** after your first session to see real numbers for your
@@ -337,3 +345,106 @@ Hit a snag? These cover just about everything that trips people up on this path:
   for the two-step "panic procedure" (rotate your session secret, revoke the
   GitHub authorization). It takes about a minute and immediately locks out any
   device using your old session.
+
+---
+
+## Technical reference (for Docker-comfortable users)
+
+Everything below is the fast path — raw commands, no hand-holding. If you followed
+Tutorial 1 or 2 above, you already have all of this running; this section is for
+people who'd rather skip the walkthrough, plus the auth/config details that don't
+fit either tutorial.
+
+### Bare localhost (no Tailscale, no gatekeeper)
+
+The fastest way to see it running. Requires Docker.
+
+```bash
+cp .env.example .env      # set GITPDM_TOKEN + optionally GIT_REMOTE_URL
+docker compose up -d --build
+```
+
+Open <http://localhost:3000>. FreeCAD loads in the tab. If you set `GIT_REMOTE_URL`,
+your repo is already cloned at `/config/repo`; otherwise open GitPDM's panel and
+clone/create from there. Work → save → commit → push, all from inside the session.
+
+Check credentials resolved:
+
+```bash
+docker exec outpost outpost-authcheck
+# GitPDM auth check: OK — source=env provider=github host=github.com login=<you>
+```
+
+This mode has no auth boundary of its own — see "How auth actually works" below
+before publishing port 3000 anywhere but `localhost`.
+
+### Tailscale overlay, raw commands
+
+Same result as Tutorial 1, without the walkthrough:
+
+```bash
+# set GITPDM_TOKEN + TS_AUTHKEY in .env (or leave TS_AUTHKEY blank for interactive login)
+docker compose -f docker-compose.yml -f compose.tailscale.yml up -d --build
+docker compose logs -f tailscale   # first run without an authkey: follow the login URL
+```
+
+Then browse to `https://freecad.<your-tailnet>.ts.net` from any device on the tailnet
+(phone on cellular included). The sidecar owns the network namespace, so Selkies never
+binds a host port — `tailscale serve` terminates a real cert on :443 and proxies to it
+(WebSocket upgrade and all). Tailnet-only: no Funnel, nothing on the public internet.
+Config lives in `compose.tailscale.yml` + `tailscale/serve.json`; rationale in
+`docs/DECISIONS.md` D5.
+
+### Gatekeeper, standalone (local test rig for rung 2)
+
+The gatekeeper is a small Go shim in front of Selkies: GitHub device-flow login,
+identity-pinned to one account, and a proxy that only lets an authenticated session
+through. It's what makes a public URL (Railway, Tutorial 2) safe — and it also runs
+fine standalone, as a local stand-in for that:
+
+```bash
+# GitHub OAuth App (device flow enabled, no client secret needed):
+# https://github.com/settings/developers -> New OAuth App -> Enable Device Flow
+cp .env.example .env   # set GITHUB_CLIENT_ID, ALLOWED_GITHUB_USER, SESSION_SECRET
+docker compose -f docker-compose.yml -f compose.gatekeeper.yml up -d --build
+```
+
+Open `http://localhost:8081` — you'll see a device code and a link to
+`github.com/login/device`. Enter the code there; if the account matches
+`ALLOWED_GITHUB_USER`, the page reloads into FreeCAD, already GitPDM-authenticated
+with no second prompt. Anyone else who completes device flow with a different account
+is rejected outright — no cookie, no token written anywhere. Only the gatekeeper's
+port is published; Selkies and `/healthz` are not reachable except through it.
+
+Session cookies default to 24–48 h and are self-contained (encrypted, not stored
+server-side) — see `docs/DECISIONS.md` D6. If a logged-in device is lost or stolen,
+follow the panic procedure in `SECURITY.md` immediately.
+
+### How auth actually works (read before exposing this to a network)
+
+Worth two minutes before you point this at anything but your own tailnet. Outpost
+requests `repo` scope because **the same token is the door key and the git
+credential**. A valid session includes FreeCAD's Python console — i.e. arbitrary code
+execution as the container user, including reading that token. What that means in
+practice:
+
+- On `localhost`/Tailscale (rung 1) the network *is* the auth boundary — do not publish
+  port 3000 to the internet without the gatekeeper.
+- On a public deployment (rung 2), the gatekeeper is the auth boundary — it is the only
+  thing that should ever be publicly reachable; Selkies must not be independently
+  published (Railway's own routing enforces this; `compose.gatekeeper.yml` enforces it
+  locally today).
+- Never branch-protect `gitpdm/recovery` or `gitpdm/presence` on your forge — GitPDM
+  force-resets those refs and protection breaks its pruning.
+- If a device with a live session is lost or stolen, see `SECURITY.md`'s panic
+  procedure: rotate `SESSION_SECRET` (kills all sessions instantly) and revoke the
+  GitHub OAuth App's authorization (kills the token itself).
+
+### Configuration reference
+
+Nothing hidden — all via `.env` (see `.env.example`). The load-bearing values:
+`GITPDM_PROVIDER`, `GITPDM_TOKEN`, `GIT_REMOTE_URL`, `PUID`/`PGID` for rung 1;
+`GITHUB_CLIENT_ID`, `ALLOWED_GITHUB_USER`, `SESSION_SECRET` for the gatekeeper (rung 2
+/ local rung-2-style testing). Provider support day one is **GitHub** or **generic**
+(any git remote via PAT-in-URL / ambient SSH) on rung 1 — the gatekeeper's device
+flow is GitHub-only by design; other named hosts are on the roadmap.
