@@ -1,3 +1,14 @@
 .env
 scripts/benchmark/models/
 *.log
+
+# Internal planning/decision logs — not meant for a stranger browsing the repo.
+# docs/DEPLOY_GUIDE.md and docs/TEMPLATE_LISTING.md stay tracked (linked from
+# README + the Railway template listing).
+docs/DECISIONS.md
+docs/OUTPOST_DEV_PLAN.md
+docs/OUTPOST_PROJECT_SCOPE.md
+docs/PHASE0_VERIFICATION.md
+docs/PHASE2_VERIFICATION.md
+docs/PHASE3_VERIFICATION.md
+docs/PHASE4_DEPLOY.md
