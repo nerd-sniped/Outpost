@@ -17,9 +17,9 @@ variables, that's configured in the dashboard later, in 4.5.
 - Railway CLI: `npm i -g @railway/cli` (or the installer at
   <https://docs.railway.com/guides/cli>). Not installed in this dev environment —
   run these steps from a shell where it is.
-- The same GitHub OAuth App from Phase 3 (device flow enabled) works as-is — device
-  flow ignores the callback URL, so no new app or reconfiguration is needed. Reuse the
-  `GITHUB_CLIENT_ID` from your Phase 3 testing.
+- `GITHUB_CLIENT_ID` no longer needs to be set — the gatekeeper defaults to the
+  shared "Outpost" OAuth App (see `docs/DEPLOY_GUIDE.md`). Only set it if you want a
+  self-owned OAuth App for this deployment instead.
 
 ## 1. Create the Railway project and deploy
 
@@ -42,7 +42,7 @@ Railway. Set each with `railway variables set KEY=value`, or via the dashboard:
 | Variable | Value | Notes |
 |---|---|---|
 | `AUTH_MODE` | `gatekeeper` | **Required.** Without this, `custom-services.d/gatekeeper` no-ops (`sleep infinity`) and nothing listens on Railway's injected `PORT` — the deploy will fail its healthcheck. |
-| `GITHUB_CLIENT_ID` | (from Phase 3's OAuth App) | Device flow, no secret needed. |
+| `GITHUB_CLIENT_ID` | optional | Defaults to the shared "Outpost" OAuth App baked into `gatekeeper/main.go`. Only set this to use a self-owned OAuth App instead. |
 | `ALLOWED_GITHUB_USER` | your GitHub login | Case-insensitive match, per `gatekeeper/main.go`. |
 | `SESSION_SECRET` | `openssl rand -hex 32` | Generate fresh — don't reuse the Phase 3 local value. |
 | `GIT_REMOTE_URL` | optional | Omit to land in GitPDM's first-run panel instead. |

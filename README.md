@@ -12,6 +12,13 @@ disposable by design.
 
 [linuxserver/freecad]: https://github.com/linuxserver/docker-freecad
 
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/template/REPLACE_ME_WITH_TEMPLATE_ID)
+
+**New to this / not a developer?** Skip straight to
+[`docs/DEPLOY_GUIDE.md`](docs/DEPLOY_GUIDE.md) — a plain-language, no-jargon
+walkthrough from "I have a GitHub account" to "I'm using FreeCAD in my browser."
+Everything below this point is the engineering-level README.
+
 ---
 
 ## Status

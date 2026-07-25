@@ -139,6 +139,32 @@ than a silent gap.
 
 ---
 
+## Phase 6.3 work, pulled forward (template one-click deploy)
+
+**Promoted ahead of Phase 5**, same reasoning as 2.2's iPad Safari promotion:
+the deployability/UX gap was too load-bearing to leave until Phase 6 — the
+original goal was a genuinely few-click deploy for non-technical users, and the
+CLI-first flow (4.1) plus a manual-OAuth-App step was far from that.
+
+Done: shared "Outpost" GitHub OAuth App baked into the gatekeeper as the default
+`GITHUB_CLIENT_ID` (removes the one GitHub-Developer-Settings step from every
+deploy — device-flow client IDs aren't secret, and `ALLOWED_GITHUB_USER` is what
+actually gates each deployment, so sharing one client ID across deployments is
+safe); `docs/DEPLOY_GUIDE.md` (plain-language walkthrough); README "Deploy on
+Railway" button (placeholder pending the template below).
+
+Still open, and outside what a repo change alone can do — dashboard-only actions:
+create the shared GitHub OAuth App for real and drop its client ID into
+`gatekeeper/main.go`; create the actual Railway Template (variable list with
+`SESSION_SECRET` on Railway's `${{secret(32)}}` generator, auto-generated public
+domain, `GITHUB_CLIENT_ID`/`RAILWAY_API_TOKEN` marked advanced/optional); get the
+resulting template URL into the README badge. 6.3's "stranger deploys from the
+listing alone" test still applies once that's live — and 6.1's cost validation
+should land before the button gets wide visibility, so an unvalidated cost
+estimate isn't what greets a stranger clicking it.
+
+---
+
 ## Phase 5 — Demand-driven polish (no exit gate; backlog, not commitment)
 
 GPU compose overlay (NVENC) + docs · Wake-on-LAN guide · FreeCAD touch-profile preset (large toolbars) · recovery-restore integration test (kill container mid-session → GitPDM offers restore from `gitpdm/recovery` on next boot — exercises GitPDM's already-shipped checkpoint restore, not new code) · Fly.io port of the gatekeeper flow (same image, proves portability claim) · GitLab.com device-flow provider (exercises token refresh in production; note GitLab is PAT-only in GitPDM today per the capability matrix).

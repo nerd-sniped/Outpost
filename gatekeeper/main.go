@@ -47,6 +47,16 @@ const (
 	// on top rather than cutting it close. See D12 for why this exists instead
 	// of using Railway's own drain-time mechanism.
 	checkpointDrainDelay = 12 * time.Second
+
+	// defaultGitHubClientID is the shared "Outpost" GitHub OAuth App (Device Flow
+	// enabled, no client secret — device flow never uses one, so this value isn't
+	// sensitive). It exists so a template deployer never has to visit GitHub
+	// Developer Settings at all: ALLOWED_GITHUB_USER is what actually gates access
+	// per-deployment (see the identity check in runDeviceFlow), so every
+	// deployment sharing one client ID is safe — it only identifies "this is an
+	// Outpost sign-in," never who's allowed through. Override via GITHUB_CLIENT_ID
+	// for a self-hosted OAuth App instead. See docs/DEPLOY_GUIDE.md.
+	defaultGitHubClientID = "Ov23liFSHXw6177WiT2f"
 )
 
 var (
@@ -70,7 +80,10 @@ var (
 )
 
 func main() {
-	githubClientID = requireEnv("GITHUB_CLIENT_ID")
+	githubClientID = os.Getenv("GITHUB_CLIENT_ID")
+	if githubClientID == "" {
+		githubClientID = defaultGitHubClientID
+	}
 	allowedUser = requireEnv("ALLOWED_GITHUB_USER")
 	aesKey = sha256.Sum256([]byte(requireEnv("SESSION_SECRET")))
 

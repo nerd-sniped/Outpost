@@ -6,7 +6,7 @@
 # public callback URL is required for device flow, so this works fully offline of
 # any hosting platform.
 #
-#   cp .env.example .env   # set GITHUB_CLIENT_ID, ALLOWED_GITHUB_USER, SESSION_SECRET
+#   cp .env.example .env   # set ALLOWED_GITHUB_USER, SESSION_SECRET (GITHUB_CLIENT_ID optional)
 #   docker compose -f docker-compose.yml -f compose.gatekeeper.yml up -d --build
 #   open http://localhost:8081
 #
