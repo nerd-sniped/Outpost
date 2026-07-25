@@ -3,14 +3,24 @@
 **Outpost is a FreeCAD Deployment that runs in the browser.** Sign in & design.
 
 
+<table>
+<tr>
+<td width="50%" valign="top">
+
 Here's a quick demo showing the capabilities. For what it's worth, a phone is a terrible FreeCAD interface, but it is technically possible...
 
 ![Phone demo](Artwork/Phone.gif)
 
-And a slightly more practical example using and Ipad 
+</td>
+<td width="50%" valign="top">
 
+And a slightly more practical example using an iPad
 
 ![iPad demo](Artwork/Ipad.gif)
+
+</td>
+</tr>
+</table>
 
 
 ## What you need to deploy your own version
