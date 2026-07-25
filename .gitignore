@@ -1,6 +1,7 @@
 .env
 scripts/benchmark/models/
 *.log
+.claude/worktrees/
 
 # Internal planning/decision logs — not meant for a stranger browsing the repo.
 # docs/DEPLOY_GUIDE.md and docs/TEMPLATE_LISTING.md stay tracked (linked from
