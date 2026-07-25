@@ -11,6 +11,7 @@ package main
 
 import (
 	"bytes"
+	"compress/gzip"
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
@@ -125,10 +126,15 @@ func main() {
 		origDirector := selkiesProxy.Director
 		selkiesProxy.Director = func(req *http.Request) {
 			origDirector(req)
-			// ModifyResponse below only handles plain bodies — strip Accept-Encoding
-			// on the way out so Selkies'/nginx's response never arrives gzipped
-			// rather than teaching ModifyResponse to transparently decode/re-encode.
-			req.Header.Del("Accept-Encoding")
+			// Accept-Encoding is deliberately left untouched here: an earlier version
+			// stripped it on every request so ModifyResponse below never had to deal
+			// with a gzipped body, but that also forced every JS/CSS/image asset
+			// Selkies serves to go uncompressed for the life of the session — a real
+			// bandwidth/latency cost on every cloud deployment with this feature on,
+			// paid on assets that have nothing to do with the injected button.
+			// injectShutdownUI now decodes gzip itself when it actually encounters it,
+			// so only the (tiny) HTML shell ever pays the uncompressed-transfer cost.
+			//
 			// nginx serves Selkies' page shell as a static file with an ETag/
 			// Last-Modified that never changes across our own deploys (it's baked
 			// into the base image). Without this, a browser that already has any
@@ -201,8 +207,7 @@ func router(w http.ResponseWriter, r *http.Request) {
 
 	if p := validSession(r); p != nil {
 		ensureTokenFile(p.Token)
-		configureGitIdentity(p.Login)
-		configureGitCredentials(p.Login, p.Token)
+		ensureGitConfigured(p.Login, p.Token)
 		selkiesProxy.ServeHTTP(w, r)
 		return
 	}
@@ -332,10 +337,41 @@ func ensureTokenFile(token string) {
 // would silently write to /root/.gitconfig, invisible to GitPDM/git operations that
 // run as abc (HOME=/config). --file sidesteps that mismatch entirely. /config is a
 // persistent volume (unlike the tmpfs token file), so this only needs to happen
-// once — but it's cheap to re-check, and doing so on every proxied request also
-// self-heals a git identity lost to a wiped/fresh /config volume, the same way
-// ensureTokenFile self-heals the token after a container recreate.
+// once — but doing so on every proxied request self-heals a git identity lost to a
+// wiped/fresh /config volume, the same way ensureTokenFile self-heals the token
+// after a container recreate.
 const gitConfigPath = "/config/.gitconfig"
+
+// ensureGitConfigured wraps configureGitIdentity/configureGitCredentials with an
+// in-memory cache keyed on the session token, so the three `git config` subprocess
+// spawns those functions make happen once per token rather than on every single
+// proxied request (every asset/poll a session generates was re-forking `git` three
+// times before this cache existed — real latency and CPU contention with Selkies'
+// encoder on a constrained instance, for no benefit beyond the rare case of /config
+// being wiped out from under an already-running process). A process restart resets
+// the cache to zero value, so the self-heal path above still runs in full the first
+// time any request lands afterward; a token change (re-auth) also forces a full
+// re-check, so credential rotation is never served stale.
+var (
+	gitConfiguredMu    sync.Mutex
+	gitConfiguredToken string
+)
+
+func ensureGitConfigured(login, token string) {
+	gitConfiguredMu.Lock()
+	if gitConfiguredToken == token {
+		gitConfiguredMu.Unlock()
+		return
+	}
+	gitConfiguredMu.Unlock()
+
+	configureGitIdentity(login)
+	configureGitCredentials(login, token)
+
+	gitConfiguredMu.Lock()
+	gitConfiguredToken = token
+	gitConfiguredMu.Unlock()
+}
 
 // configureGitIdentity sets user.name/user.email from the authenticated GitHub
 // login if neither is already set — never overwrites a value the operator (or a
@@ -738,14 +774,34 @@ func pollHandler(w http.ResponseWriter, r *http.Request) {
 // when RAILWAY_API_TOKEN/RAILWAY_DEPLOYMENT_ID are both set. Rewrites only
 // text/html responses (Selkies' own page shell) to add a floating button + a
 // keyboard-shortcut listener — everything else (JS, CSS, the WebSocket upgrade)
-// passes through completely untouched. Requires the Director to have stripped
-// Accept-Encoding on the outbound request (see main()) so the body here is
-// always plain, uncompressed bytes — this function does not handle gzip itself.
+// passes through completely untouched. Since Accept-Encoding is no longer stripped
+// on the way out (see main()), the page shell can legitimately arrive gzipped here —
+// decoded below rather than re-imposing that cost on every other asset.
 func injectShutdownUI(resp *http.Response) error {
 	if !strings.Contains(resp.Header.Get("Content-Type"), "text/html") {
 		return nil
 	}
-	body, err := io.ReadAll(resp.Body)
+
+	contentEncoding := strings.ToLower(resp.Header.Get("Content-Encoding"))
+	var reader io.Reader = resp.Body
+	switch contentEncoding {
+	case "", "identity":
+		// already plain
+	case "gzip":
+		gr, err := gzip.NewReader(resp.Body)
+		if err != nil {
+			resp.Body.Close()
+			return err
+		}
+		defer gr.Close()
+		reader = gr
+	default:
+		// An encoding we don't know how to decode (e.g. br) — leave the response
+		// untouched rather than risk corrupting a body we can't safely modify.
+		return nil
+	}
+
+	body, err := io.ReadAll(reader)
 	resp.Body.Close()
 	if err != nil {
 		return err
@@ -759,6 +815,11 @@ func injectShutdownUI(resp *http.Response) error {
 	resp.Header.Del("ETag")
 	resp.Header.Del("Last-Modified")
 	resp.Header.Set("Cache-Control", "no-store")
+	if contentEncoding != "" && contentEncoding != "identity" {
+		// body is now decoded plaintext — the Content-Encoding header must go or
+		// the browser will try to gunzip bytes that are no longer gzipped.
+		resp.Header.Del("Content-Encoding")
+	}
 
 	const marker = "</body>"
 	if idx := bytes.LastIndex(body, []byte(marker)); idx != -1 {
