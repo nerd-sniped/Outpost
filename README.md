@@ -1,8 +1,10 @@
 # Outpost
-Here's a quick demo showing thet capabilities. For what it's worth, a phone is a terrible FreeCAD interface, but it is technically possible...
+Here's a quick demo showing the capabilities. For what it's worth, a phone is a terrible FreeCAD interface, but it is technically possible...
 
 <a href="https://youtu.be/EcqeTT81j08"><img align="right" width="320" alt="Outpost demo video" src="https://img.youtube.com/vi/EcqeTT81j08/hqdefault.jpg"></a>
 
+And a slightly more practical example using and Ipad 
+{PUT IPAD VIDEO HERE}
 
 **Outpost is a FreeCAD Deployment that runs in the browser.** Sign in & design.
 
