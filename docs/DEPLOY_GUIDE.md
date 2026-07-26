@@ -50,6 +50,21 @@ here is free and open-source, your files live in a git repo you actually own
 instead of a vendor's database, and there's no subscription tying your designs
 to a company's continued existence.
 
+## Why GitPDM? The reason this isn't "just Onshape but worse"
+
+This is worth pausing on, because it's the actual point of Outpost, not a footnote.
+
+Most CAD software makes you pick one of two worlds:
+
+- **Onshape** lives entirely in the browser. Reach your files from anywhere — but there's no offline desktop app to fall back on if you'd rather work locally.
+- **Fusion 360 and SolidWorks** live entirely on your desktop. Full power, but your files are tied to that one machine — no real browser-native way to reach them elsewhere.
+
+**GitPDM** is the sister project that ships inside every Outpost, and it's what closes that gap. It's a FreeCAD add-on that treats your project like a git repository instead of a folder on a hard drive: every time you Save → Commit → Push from inside FreeCAD, your actual `.FCStd` files move into a GitHub repo you own — not onto whatever computer FreeCAD happens to be running on.
+
+Because GitPDM isn't something special to Outpost — it's a normal FreeCAD workbench you can install on your own desktop copy of FreeCAD too — you get the same push/pull workflow on both ends. Model on your desktop machine tonight and push; open the same file from your phone through Outpost tomorrow, and it's exactly where you left it. That's the **Dual Workflow**: the same files, reachable equally well from a browser tab or a desktop install, instead of being locked into one or the other like every other CAD package on the market.
+
+It's also *why* the "disposable computer" trick above works safely: the machine running FreeCAD was never the real home for your files, so throwing it away, restarting it, or replacing it costs you nothing.
+
 ## The moving parts (tech stack, in plain English)
 
 You don't need to understand any of this to follow the tutorials — it's here so

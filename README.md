@@ -61,6 +61,19 @@ There are a handful of core technologies that enable this to work.
 - **Tailscale** — a zero-config VPN client that lets you connect machines with an easy SSO process.
 - **Railway** — a minimal-configuration server host.
 
+## Why GitPDM? The Dual Workflow
+
+FreeCAD is the engine doing the actual modeling — Outpost's job is making it reachable from a browser. **[GitPDM](https://github.com/nerd-sniped/GitPDM)** is the sister project that ships with every Outpost, and it's what makes that useful instead of just a novelty: it keeps your files off the machine that's running FreeCAD.
+
+Every other CAD tool picks a side:
+
+- **Onshape** is browser-only. Reachable anywhere, but there's no desktop client to fall back on — no connection, no CAD.
+- **Fusion 360 and SolidWorks** are desktop-only. Serious modeling, but leave your machine at home and you're stuck.
+
+GitPDM is what lets Outpost avoid that trade-off. Instead of your `.FCStd` files living on whichever machine you happen to be using, GitPDM treats them as a git repository: every save/commit/push moves your actual work into a repo you own (GitHub, by default) — not onto Outpost's disposable container, and not onto your laptop's disk either. Because GitPDM is a normal FreeCAD addon, not something Outpost-exclusive, you can install it on your desktop FreeCAD too, and both ends read and write the exact same repo. Model at your desk tonight, commit; pick up the same file from your phone through Outpost tomorrow. That's the Dual Workflow — one CAD engine, one set of files, equally reachable from a browser or a desktop install — something Onshape, Fusion, and SolidWorks each only do half of.
+
+It's also why Outpost's server can be disposable at all: kill the container, redeploy it, let it sleep — none of it matters, because the real copy of your work was never sitting on it to begin with.
+
 ## Overview
 
 Ultimately the goal is to have access to FreeCAD anywhere, anytime, from any device. Currently, no CAD system is usable via the browser *and* as a standalone program - it's one or the other, and there isn't a great reason for that besides money. Outpost is a step in that direction. You can use your desktop instance of FreeCAD like you normally would, sync your files up to any git host, and then access them while you're on the go from a mobile version of the same desktop software.

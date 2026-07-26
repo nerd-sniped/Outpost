@@ -15,7 +15,7 @@ services:
       # Bump these to change pins without editing the Dockerfile.
       args:
         FREECAD_VERSION: "1.1.1"
-        GITPDM_VERSION: "v0.6.4"
+        GITPDM_VERSION: "v0.6.5"
         HISTORY_WB_VERSION: "v0.1.0"
     image: outpost:dev
     container_name: outpost
